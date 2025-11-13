@@ -1,10 +1,9 @@
-// app/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic'; // ✅ untuk load Leaflet di client saja
 import FilterSection from '@/components/FilterSection';
 import StatsCards from '@/components/StatsCards';
-import VehicleMap from '@/components/VehicleMap';
 import DataTable from '@/components/DataTable';
 import { useMQTT } from '@/hooks/useMQTT';
 import { useLoRaWAN } from '@/hooks/useLoRaWAN';
@@ -12,26 +11,35 @@ import { generateMockData, vehiclePositions } from '@/lib/mockData';
 import { calculateStats } from '@/lib/calculateStats';
 import { Filters, VehicleData } from '@/types';
 
+// ✅ Leaflet map dimuat hanya di browser (bukan SSR)
+const VehicleMap = dynamic(() => import('@/components/VehicleMap'), {
+  ssr: false,
+});
+
 export default function Home() {
   const [data, setData] = useState<VehicleData[]>([]);
   const [filters, setFilters] = useState<Filters>({ date: '', driver: '', route: '' });
 
+  // Generate data mock pertama kali
   useEffect(() => {
     setData(generateMockData());
   }, []);
 
+  // MQTT connection
   const { messages: mqttMessages, isConnected: mqttConnected } = useMQTT({
     enabled: false,
     brokerUrl: 'ws://localhost:8083/mqtt',
     topics: ['vehicle/position', 'vehicle/status'],
   });
 
+  // LoRaWAN connection
   const { data: loraData, isConnected: loraConnected } = useLoRaWAN({
     enabled: false,
     apiUrl: 'localhost:8080',
     apiKey: 'your-api-key',
   });
 
+  // Log pesan terbaru dari MQTT
   useEffect(() => {
     if (mqttMessages.length > 0) {
       const latest = mqttMessages[mqttMessages.length - 1];
@@ -39,6 +47,7 @@ export default function Home() {
     }
   }, [mqttMessages]);
 
+  // Log data terbaru dari LoRa
   useEffect(() => {
     if (loraData.length > 0) {
       const latest = loraData[loraData.length - 1];
@@ -46,6 +55,7 @@ export default function Home() {
     }
   }, [loraData]);
 
+  // Hitung statistik dari data kendaraan
   const stats = calculateStats(data);
 
   return (
@@ -57,6 +67,8 @@ export default function Home() {
           <h1 className="text-xl md:text-2xl font-bold text-cyan-400 tracking-wide drop-shadow-[0_0_8px_#00FFFF80] mb-1">
             Vehicle Operation Management System
           </h1>
+
+          {/* Connection Status */}
           <div className="flex justify-center gap-3 text-[11px] md:text-sm text-gray-400">
             {[
               { label: 'MQTT', connected: mqttConnected },

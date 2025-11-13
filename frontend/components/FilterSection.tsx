@@ -1,3 +1,4 @@
+// components/FilterSection.tsx
 'use client';
 
 import { Filters } from '@/types';
@@ -13,7 +14,7 @@ export default function FilterSection({ filters, onFilterChange }: FilterSection
   };
 
   return (
-    <div className="bg-[#0D1117] border border-[#1F2A37] rounded-lg p-4 mb-6">
+    <div className="bg-[#0D1117] border border-[#1F2A37] rounded-lg p-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           { key: 'date', label: 'Date', options: ['Today', 'Yesterday', 'Last 7 days'] },

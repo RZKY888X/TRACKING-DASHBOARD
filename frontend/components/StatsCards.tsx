@@ -40,32 +40,34 @@ export default function StatsCards({ stats }: StatsCardsProps) {
         </div>
       </div>
 
-      {/* Trip Metrics */}
+      {/* Trip Metrics (cleaned up) */}
       <div className={`${cardBase} mx-auto w-[90%]`}>
         <h3 className="text-xl font-semibold text-cyan-400 mb-5 tracking-tight">
           Trip Metrics
         </h3>
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-3">
+          {/* Average Trip Duration */}
+          <div className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-4">
             <div className="flex items-center gap-3">
-              <Clock className="text-blue-400" size={26} />
+              <Clock className="text-blue-400" size={24} />
               <p className="text-base md:text-lg text-gray-300 font-medium">
                 Avg Trip Duration
               </p>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-gray-100 leading-tight">
+            <p className="text-xl md:text-2xl font-bold text-gray-100">
               3h 42m
             </p>
           </div>
 
-          <div className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-3">
+          {/* Average Trip Speed */}
+          <div className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-4">
             <div className="flex items-center gap-3">
-              <Gauge className="text-cyan-400" size={26} />
+              <Gauge className="text-cyan-400" size={24} />
               <p className="text-base md:text-lg text-gray-300 font-medium">
                 Avg Trip Speed
               </p>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-gray-100 leading-tight">
+            <p className="text-xl md:text-2xl font-bold text-gray-100">
               50 km/h
             </p>
           </div>

@@ -1,98 +1,56 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import type L from 'leaflet';
-import { VehiclePosition } from '@/types';
+import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 
-interface VehicleMapProps {
-  positions: VehiclePosition[];
-}
-
-export default function VehicleMap({ positions }: VehicleMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !mapRef.current) return;
-
-    const initMap = async () => {
-      const L = (await import('leaflet')).default;
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-
-      if (!mapInstanceRef.current) {
-        mapInstanceRef.current = L.map(mapRef.current!, {
-          center: [-6.9175, 107.6191],
-          zoom: 9,
-        });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors',
-        }).addTo(mapInstanceRef.current);
-
-        const iconColors: Record<VehiclePosition['status'], string> = {
-          idle: '#22c55e',
-          onTrip: '#eab308',
-          completed: '#8b5cf6',
-        };
-
-        positions.forEach((pos) => {
-          const icon = L.divIcon({
-            html: `<div style="
-              background-color: ${iconColors[pos.status]};
-              width: 18px; height: 18px; border-radius: 50%;
-              border: 2px solid #0D1117;
-              box-shadow: 0 0 8px ${iconColors[pos.status]};
-            "></div>`,
-            className: '',
-          });
-          L.marker([pos.lat, pos.lng], { icon }).addTo(mapInstanceRef.current!);
-        });
-      }
-    };
-
-    initMap();
-  }, [positions]);
+export default function VehicleMap() {
+  const vehicles = [
+    { id: 1, position: [-6.2, 106.816666], status: "Idle", color: "#00c853" },
+    { id: 2, position: [-6.9, 107.6], status: "On Trip", color: "#ffeb3b" },
+    { id: 3, position: [-6.5, 107.0], status: "Completed", color: "#9c27b0" },
+  ];
 
   return (
-    <div className="bg-[#0B1120] border border-cyan-500/10 rounded-2xl shadow-[0_0_20px_#00FFFF15] p-6 mb-4 text-gray-100">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-stretch gap-6">
-        {/* Map Section */}
-        <div className="flex-1 flex flex-col">
-          <h2 className="text-lg md:text-xl font-semibold mb-3 text-center text-white tracking-wide">
-            Vehicle Position
-          </h2>
-          <div
-            ref={mapRef}
-            className="h-[420px] md:h-[480px] rounded-xl border border-cyan-500/20 shadow-inner shadow-cyan-500/10"
-          ></div>
-        </div>
+    <div className="relative w-full h-[500px] bg-transparent">
+      <MapContainer
+        center={[-6.5, 107.0]}
+        zoom={9}
+        scrollWheelZoom={true}
+        className="w-full h-full rounded-2xl shadow-lg z-0"
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        />
+        {vehicles.map((v) => (
+          <CircleMarker
+            key={v.id}
+            center={v.position}
+            radius={10}
+            pathOptions={{ color: v.color, fillColor: v.color, fillOpacity: 0.8 }}
+          >
+            <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent>
+              {v.status}
+            </Tooltip>
+          </CircleMarker>
+        ))}
+      </MapContainer>
 
-        {/* Legend Section */}
-        <div className="flex flex-col justify-center items-center lg:w-44 mt-2">
-          <h3 className="text-base font-semibold mb-5 text-white tracking-wider">
-            Status
-          </h3>
-
-          <div className="flex flex-col justify-center items-center gap-10">
-            {[
-              { color: 'bg-green-500', label: 'Idle' },
-              { color: 'bg-yellow-400', label: 'On Trip' },
-              { color: 'bg-purple-500', label: 'Completed' },
-            ].map(({ color, label }) => (
-              <div
-                key={label}
-                className={`relative w-24 h-24 flex items-center justify-center rounded-full border-2 border-[#0D1117] ${color} shadow-[0_0_18px_rgba(0,255,255,0.25)]`}
-              >
-                <span className="text-sm font-semibold text-white text-center leading-tight drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
-                  {label}
-                </span>
-              </div>
-            ))}
+      {/* Compact Legend */}
+      <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-sm rounded-xl p-2 flex flex-col gap-1 text-sm text-white shadow-md z-[1000]">
+        {[
+          { label: "Idle", color: "#00c853" },
+          { label: "On Trip", color: "#ffeb3b" },
+          { label: "Completed", color: "#9c27b0" },
+        ].map((item) => (
+          <div key={item.label} className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/10">
+            <span
+              className="inline-block w-3 h-3 rounded-full"
+              style={{ backgroundColor: item.color }}
+            ></span>
+            <span className="text-xs font-medium">{item.label}</span>
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );
