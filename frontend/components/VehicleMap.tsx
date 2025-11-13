@@ -40,34 +40,55 @@ export default function VehicleMap({ positions }: VehicleMapProps) {
 
         positions.forEach((pos) => {
           const icon = L.divIcon({
-            html: `<div style="background-color: ${iconColors[pos.status]}; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #0D1117; box-shadow: 0 0 8px ${iconColors[pos.status]};"></div>`,
+            html: `<div style="
+              background-color: ${iconColors[pos.status]};
+              width: 18px; height: 18px; border-radius: 50%;
+              border: 2px solid #0D1117;
+              box-shadow: 0 0 8px ${iconColors[pos.status]};
+            "></div>`,
             className: '',
           });
           L.marker([pos.lat, pos.lng], { icon }).addTo(mapInstanceRef.current!);
         });
       }
     };
+
     initMap();
   }, [positions]);
 
   return (
-    <div className="bg-[#0D1117] border border-[#1F2A37] rounded-lg p-4 md:p-6 mb-6 text-gray-100">
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="flex-1">
-          <h2 className="text-lg font-semibold mb-4">Vehicle Position</h2>
-          <div ref={mapRef} className="h-64 md:h-80 rounded-lg border border-[#1F2A37]"></div>
+    <div className="bg-[#0B1120] border border-cyan-500/10 rounded-2xl shadow-[0_0_20px_#00FFFF15] p-6 mb-4 text-gray-100">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-stretch gap-6">
+        {/* Map Section */}
+        <div className="flex-1 flex flex-col">
+          <h2 className="text-lg md:text-xl font-semibold mb-3 text-center text-white tracking-wide">
+            Vehicle Position
+          </h2>
+          <div
+            ref={mapRef}
+            className="h-[420px] md:h-[480px] rounded-xl border border-cyan-500/20 shadow-inner shadow-cyan-500/10"
+          ></div>
         </div>
-        <div className="lg:w-32">
-          <h3 className="text-sm font-semibold mb-4 lg:mb-6 text-gray-400">Legend</h3>
-          <div className="space-y-3">
+
+        {/* Legend Section */}
+        <div className="flex flex-col justify-center items-center lg:w-44 mt-2">
+          <h3 className="text-base font-semibold mb-5 text-white tracking-wider">
+            Status
+          </h3>
+
+          <div className="flex flex-col justify-center items-center gap-10">
             {[
               { color: 'bg-green-500', label: 'Idle' },
-              { color: 'bg-yellow-500', label: 'On Trip' },
+              { color: 'bg-yellow-400', label: 'On Trip' },
               { color: 'bg-purple-500', label: 'Completed' },
             ].map(({ color, label }) => (
-              <div key={label} className="flex items-center gap-2">
-                <div className={`w-6 h-6 ${color} rounded-full`}></div>
-                <span className="text-sm text-gray-300">{label}</span>
+              <div
+                key={label}
+                className={`relative w-24 h-24 flex items-center justify-center rounded-full border-2 border-[#0D1117] ${color} shadow-[0_0_18px_rgba(0,255,255,0.25)]`}
+              >
+                <span className="text-sm font-semibold text-white text-center leading-tight drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+                  {label}
+                </span>
               </div>
             ))}
           </div>

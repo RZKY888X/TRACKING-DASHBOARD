@@ -8,66 +8,104 @@ interface StatsCardsProps {
 }
 
 export default function StatsCards({ stats }: StatsCardsProps) {
-  const cardBase = 'bg-[#0D1117] border border-[#1F2A37] rounded-lg p-6 shadow-md';
+  const cardBase =
+    'bg-[#0B1120] border border-cyan-500/10 rounded-2xl p-6 shadow-[0_0_15px_#00FFFF10] hover:shadow-[0_0_25px_#00FFFF20] transition-all';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 text-gray-200">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6 text-gray-200">
       {/* Vehicle Status */}
-      <div className={cardBase}>
-        <h3 className="text-sm font-semibold text-gray-400 mb-4">Vehicle Status</h3>
-        <div className="space-y-4">
+      <div className={`${cardBase} mx-auto w-[90%]`}>
+        <h3 className="text-xl font-semibold text-cyan-400 mb-5 tracking-tight">
+          Vehicle Status
+        </h3>
+        <div className="flex flex-col gap-4">
           {[
             { color: 'bg-green-500', label: 'Idle', value: stats.idle },
-            { color: 'bg-yellow-500', label: 'On Trip', value: stats.onTrip },
+            { color: 'bg-yellow-400', label: 'On Trip', value: stats.onTrip },
             { color: 'bg-purple-500', label: 'Completed', value: stats.completed },
           ].map(({ color, label, value }) => (
-            <div key={label} className="flex items-center justify-between">
+            <div
+              key={label}
+              className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-3"
+            >
               <div className="flex items-center gap-3">
-                <div className={`w-4 h-4 ${color} rounded-full`}></div>
-                <span>{label}</span>
+                <div className={`w-5 h-5 ${color} rounded-full`} />
+                <span className="text-base md:text-lg text-gray-100 font-semibold">
+                  {label}
+                </span>
               </div>
-              <span className="text-2xl font-bold">{value}</span>
+              <span className="text-2xl font-bold text-gray-100">{value}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Trip Metrics */}
-      <div className={cardBase}>
-        <h3 className="text-sm font-semibold text-gray-400 mb-4">Trip Metrics</h3>
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Clock className="text-blue-400" size={24} />
-            <div>
-              <p className="text-sm text-gray-400">Avg Trip Duration</p>
-              <p className="text-lg font-semibold text-gray-100">3h 42m</p>
+      <div className={`${cardBase} mx-auto w-[90%]`}>
+        <h3 className="text-xl font-semibold text-cyan-400 mb-5 tracking-tight">
+          Trip Metrics
+        </h3>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-3">
+            <div className="flex items-center gap-3">
+              <Clock className="text-blue-400" size={26} />
+              <p className="text-base md:text-lg text-gray-300 font-medium">
+                Avg Trip Duration
+              </p>
             </div>
+            <p className="text-xl md:text-2xl font-bold text-gray-100 leading-tight">
+              3h 42m
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Gauge className="text-cyan-400" size={24} />
-            <div>
-              <p className="text-sm text-gray-400">Avg Trip Speed</p>
-              <p className="text-lg font-semibold text-gray-100">50 km/h</p>
+
+          <div className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-3">
+            <div className="flex items-center gap-3">
+              <Gauge className="text-cyan-400" size={26} />
+              <p className="text-base md:text-lg text-gray-300 font-medium">
+                Avg Trip Speed
+              </p>
             </div>
+            <p className="text-xl md:text-2xl font-bold text-gray-100 leading-tight">
+              50 km/h
+            </p>
           </div>
         </div>
       </div>
 
       {/* Performance */}
-      <div className={cardBase}>
-        <h3 className="text-sm font-semibold text-gray-400 mb-4">Performance</h3>
-        <div className="space-y-4">
+      <div className={`${cardBase} mx-auto w-[90%]`}>
+        <h3 className="text-xl font-semibold text-cyan-400 mb-5 tracking-tight">
+          Performance
+        </h3>
+        <div className="flex flex-col gap-4">
           {[
-            { icon: <CheckCircle className="text-green-400" size={20} />, label: 'On Time', value: stats.onTime },
-            { icon: <AlertTriangle className="text-red-400" size={20} />, label: 'Delay', value: stats.delay },
-            { icon: <Timer className="text-blue-400" size={20} />, label: 'Early', value: stats.early },
+            {
+              icon: <CheckCircle className="text-green-400" size={24} />,
+              label: 'On Time',
+              value: stats.onTime,
+            },
+            {
+              icon: <AlertTriangle className="text-red-400" size={24} />,
+              label: 'Delay',
+              value: stats.delay,
+            },
+            {
+              icon: <Timer className="text-blue-400" size={24} />,
+              label: 'Early',
+              value: stats.early,
+            },
           ].map(({ icon, label, value }) => (
-            <div key={label} className="flex items-center justify-between">
+            <div
+              key={label}
+              className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-3"
+            >
               <div className="flex items-center gap-3">
                 {icon}
-                <span>{label}</span>
+                <span className="text-base md:text-lg text-gray-100 font-semibold">
+                  {label}
+                </span>
               </div>
-              <span className="text-2xl font-bold">{value}</span>
+              <span className="text-2xl font-bold text-gray-100">{value}</span>
             </div>
           ))}
         </div>
