@@ -9,16 +9,16 @@ interface StatsCardsProps {
 
 export default function StatsCards({ stats }: StatsCardsProps) {
   const cardBase =
-    'bg-[#0B1120] border border-cyan-500/10 rounded-2xl p-6 shadow-[0_0_15px_#00FFFF10] hover:shadow-[0_0_25px_#00FFFF20] transition-all';
+    'bg-[#0B1120] border border-cyan-500/10 rounded-2xl p-5 shadow-[0_0_15px_#00FFFF10] hover:shadow-[0_0_20px_#00FFFF20] transition-all';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6 text-gray-200">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-gray-200">
       {/* Vehicle Status */}
-      <div className={`${cardBase} mx-auto w-[90%]`}>
-        <h3 className="text-xl font-semibold text-cyan-400 mb-5 tracking-tight">
+      <div className={`${cardBase} mx-auto w-[92%]`}>
+        <h3 className="text-lg font-semibold text-cyan-400 mb-4 tracking-tight">
           Vehicle Status
         </h3>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {[
             { color: 'bg-green-500', label: 'Idle', value: stats.idle },
             { color: 'bg-yellow-400', label: 'On Trip', value: stats.onTrip },
@@ -26,48 +26,48 @@ export default function StatsCards({ stats }: StatsCardsProps) {
           ].map(({ color, label, value }) => (
             <div
               key={label}
-              className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-3"
+              className="flex items-center justify-between bg-[#0F172A]/80 rounded-xl px-4 py-3"
             >
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 ${color} rounded-full`} />
-                <span className="text-base md:text-lg text-gray-100 font-semibold">
+                <div className={`w-4 h-4 ${color} rounded-full`} />
+                <span className="text-sm md:text-base text-gray-100 font-medium">
                   {label}
                 </span>
               </div>
-              <span className="text-2xl font-bold text-gray-100">{value}</span>
+              <span className="text-lg md:text-xl font-bold text-gray-100">{value}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Trip Metrics */}
-      <div className={`${cardBase} mx-auto w-[90%]`}>
-        <h3 className="text-xl font-semibold text-cyan-400 mb-5 tracking-tight">
+      <div className={`${cardBase} mx-auto w-[92%]`}>
+        <h3 className="text-lg font-semibold text-cyan-400 mb-4 tracking-tight">
           Trip Metrics
         </h3>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {/* Average Trip Duration */}
-          <div className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-4">
+          <div className="flex items-center justify-between bg-[#0F172A]/80 rounded-xl px-4 py-3">
             <div className="flex items-center gap-3">
-              <Clock className="text-blue-400" size={24} />
-              <p className="text-base md:text-lg text-gray-300 font-medium">
+              <Clock className="text-blue-400" size={20} />
+              <p className="text-sm md:text-base text-gray-300 font-medium">
                 Avg Trip Duration
               </p>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-gray-100">
+            <p className="text-lg md:text-xl font-bold text-gray-100">
               3h 42m
             </p>
           </div>
 
           {/* Average Trip Speed */}
-          <div className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-4">
+          <div className="flex items-center justify-between bg-[#0F172A]/80 rounded-xl px-4 py-3">
             <div className="flex items-center gap-3">
-              <Gauge className="text-cyan-400" size={24} />
-              <p className="text-base md:text-lg text-gray-300 font-medium">
+              <Gauge className="text-cyan-400" size={20} />
+              <p className="text-sm md:text-base text-gray-300 font-medium">
                 Avg Trip Speed
               </p>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-gray-100">
+            <p className="text-lg md:text-xl font-bold text-gray-100">
               50 km/h
             </p>
           </div>
@@ -75,39 +75,39 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       </div>
 
       {/* Performance */}
-      <div className={`${cardBase} mx-auto w-[90%]`}>
-        <h3 className="text-xl font-semibold text-cyan-400 mb-5 tracking-tight">
+      <div className={`${cardBase} mx-auto w-[92%]`}>
+        <h3 className="text-lg font-semibold text-cyan-400 mb-4 tracking-tight">
           Performance
         </h3>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {[
             {
-              icon: <CheckCircle className="text-green-400" size={24} />,
+              icon: <CheckCircle className="text-green-400" size={20} />,
               label: 'On Time',
               value: stats.onTime,
             },
             {
-              icon: <AlertTriangle className="text-red-400" size={24} />,
+              icon: <AlertTriangle className="text-red-400" size={20} />,
               label: 'Delay',
               value: stats.delay,
             },
             {
-              icon: <Timer className="text-blue-400" size={24} />,
+              icon: <Timer className="text-blue-400" size={20} />,
               label: 'Early',
               value: stats.early,
             },
           ].map(({ icon, label, value }) => (
             <div
               key={label}
-              className="flex items-center justify-between bg-[#0F172A]/70 rounded-xl px-5 py-3"
+              className="flex items-center justify-between bg-[#0F172A]/80 rounded-xl px-4 py-3"
             >
               <div className="flex items-center gap-3">
                 {icon}
-                <span className="text-base md:text-lg text-gray-100 font-semibold">
+                <span className="text-sm md:text-base text-gray-100 font-medium">
                   {label}
                 </span>
               </div>
-              <span className="text-2xl font-bold text-gray-100">{value}</span>
+              <span className="text-lg md:text-xl font-bold text-gray-100">{value}</span>
             </div>
           ))}
         </div>
