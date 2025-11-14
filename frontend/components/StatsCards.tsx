@@ -40,7 +40,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
         </div>
       </div>
 
-      {/* Trip Metrics (cleaned up) */}
+      {/* Trip Metrics */}
       <div className={`${cardBase} mx-auto w-[90%]`}>
         <h3 className="text-xl font-semibold text-cyan-400 mb-5 tracking-tight">
           Trip Metrics
