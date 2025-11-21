@@ -148,6 +148,12 @@ export default function VehicleMap() {
   const [positions, setPositions] = useState<VehiclePosition[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [routeCache, setRouteCache] = useState<Record<number, RouteCoordinates[]>>({});
+  const [isMounted, setIsMounted] = useState(false); // ✅ FIX: Add mounted state
+
+  // ✅ FIX: Check if component is mounted
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   /* FETCH VEHICLE POSITIONS FROM API */
   useEffect(() => {
@@ -244,6 +250,15 @@ export default function VehicleMap() {
     (p) => typeof p.latitude === "number" && typeof p.longitude === "number"
   );
 
+  // ✅ FIX: Return loading state if not mounted
+  if (!isMounted) {
+    return (
+      <div className="w-full h-[400px] rounded-lg overflow-hidden shadow relative bg-slate-900 flex items-center justify-center">
+        <p className="text-slate-400">Initializing map...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-[400px] rounded-lg overflow-hidden shadow relative">
       <style>{`
@@ -273,9 +288,11 @@ export default function VehicleMap() {
       `}</style>
       
       {loading && (
-        <div className="p-12 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-          <p className="text-slate-400">Loading map...</p>
+        <div className="absolute inset-0 bg-slate-900 flex items-center justify-center z-10">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+            <p className="text-slate-400">Loading map...</p>
+          </div>
         </div>
       )}
 
