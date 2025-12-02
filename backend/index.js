@@ -87,6 +87,25 @@ mqttClient.on("message", async (topic, message) => {
 });
 
 /* ======================================================
+   ASSIGMENT APIs
+====================================================== */
+app.get("/api/assignment/users", authMiddleware, async (req, res) => {
+  try {
+;    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+})
+
+/* ======================================================
    AUTHENTICATION APIs
 ====================================================== */
 app.post("/api/auth/register", authMiddleware, roleMiddleware(["ADMIN", "SUPERADMIN"]), async (req, res) => {

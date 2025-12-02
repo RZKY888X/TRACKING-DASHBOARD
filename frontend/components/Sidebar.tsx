@@ -30,12 +30,12 @@ export function Sidebar() {
 
   const menuItems: MenuItem[] = [
     { icon: Home, label: "Dashboard", href: "/" },
-    { icon: MapPin, label: "Vehicle Tracking", href: "/tracking" },
+    //{ icon: MapPin, label: "Vehicle Tracking", href: "/tracking" },
     { icon: Users, label: "User Management", href: "/users" },
     { icon: Activity, label: "Activity Logs", href: "/activity" },
     { icon: Activity, label: "Assignment", href: "/assignment" },
-    { icon: BarChart3, label: "Reports", href: "/reports" },
-    { icon: Settings, label: "Settings", href: "/settings" },
+    //{ icon: BarChart3, label: "Reports", href: "/reports" },
+    //{ icon: Settings, label: "Settings", href: "/settings" },
   ];
 
   const handleLogout = async () => {

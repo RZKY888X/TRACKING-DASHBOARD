@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 interface User {
   id: string;
   name: string;
+  email: string;
 }
 
 export default function AssignmentPage() {
@@ -20,9 +21,9 @@ export default function AssignmentPage() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingRoutes, setLoadingRoutes] = useState(true);
 
-  /* ===========================
-     FETCH USERS & ROUTES
-  ============================ */
+  /* =============================
+       FETCH USERS & ROUTES
+  ============================== */
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -32,11 +33,13 @@ export default function AssignmentPage() {
         const res = await fetch("http://localhost:3001/api/auth/users", {
           headers: { Authorization: `Bearer ${token}` },
         });
+
         if (!res.ok) throw new Error("Failed to fetch users");
+
         const data: User[] = await res.json();
         setUsers(data);
       } catch (err) {
-        console.error(err);
+        console.error("Error fetching users:", err);
       } finally {
         setLoadingUsers(false);
       }
@@ -47,11 +50,13 @@ export default function AssignmentPage() {
         const res = await fetch("http://localhost:3001/api/routes", {
           headers: { Authorization: `Bearer ${token}` },
         });
+
         if (!res.ok) throw new Error("Failed to fetch routes");
+
         const data: string[] = await res.json();
         setRoutes(data);
       } catch (err) {
-        console.error(err);
+        console.error("Error fetching routes:", err);
       } finally {
         setLoadingRoutes(false);
       }
@@ -61,9 +66,9 @@ export default function AssignmentPage() {
     fetchRoutes();
   }, []);
 
-  /* ===========================
-     RESET FORM
-  ============================ */
+  /* =============================
+            RESET FORM
+  ============================== */
   const resetForm = () => {
     setVehicle("");
     setRouteFrom("");
@@ -73,18 +78,26 @@ export default function AssignmentPage() {
     setJobRole("");
   };
 
-  /* ===========================
-     SAVE ASSIGNMENT (dummy)
-  ============================ */
+  /* =============================
+         SAVE ASSIGNMENT
+  ============================== */
   const handleSave = () => {
     if (!fullName || !email || !jobRole || !vehicle || !routeFrom || !routeTo) {
       alert("❌ Semua kolom harus diisi");
       return;
     }
 
-    const assignmentData = { fullName, email, jobRole, vehicle, routeFrom, routeTo };
+    const assignmentData = {
+      fullName,
+      email,
+      jobRole,
+      vehicle,
+      routeFrom,
+      routeTo,
+    };
+
     console.log("📌 Assignment Saved:", assignmentData);
-    alert("✅ Assignment berhasil disimpan (check console log)");
+    alert("✅ Assignment berhasil disimpan (cek console log)");
     resetForm();
   };
 
@@ -93,22 +106,33 @@ export default function AssignmentPage() {
       {/* Header */}
       <div className="w-full bg-[#0F172A] border border-cyan-500/40 rounded-xl p-6 mb-8">
         <h1 className="text-3xl font-bold text-cyan-400">Assignment</h1>
-        <p className="text-gray-400 mt-1">Manage vehicle route assignments and driver responsibilities.</p>
+        <p className="text-gray-400 mt-1">
+          Manage vehicle route assignments and driver responsibilities.
+        </p>
       </div>
 
       {/* Form */}
       <div className="w-full bg-[#0F172A] border border-cyan-500/40 rounded-xl p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
           {/* Nama Lengkap */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Nama Lengkap</label>
             <select
               className="w-full px-4 py-2 bg-[#0D1117] border border-cyan-600/40 rounded-md text-gray-200"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => {
+                const userName = e.target.value;
+                setFullName(userName);
+
+                const selectedUser = users.find((u) => u.name === userName);
+                if (selectedUser) setEmail(selectedUser.email);
+              }}
               disabled={loadingUsers}
             >
-              <option value="">{loadingUsers ? "Loading..." : "Pilih Nama"}</option>
+              <option value="">
+                {loadingUsers ? "Loading..." : "Pilih Nama"}
+              </option>
               {users.map((user) => (
                 <option key={user.id} value={user.name}>
                   {user.name}
@@ -117,7 +141,7 @@ export default function AssignmentPage() {
             </select>
           </div>
 
-          {/* Email (dummy input) */}
+          {/* Email Otomatis */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Email</label>
             <input
@@ -125,10 +149,11 @@ export default function AssignmentPage() {
               className="w-full px-4 py-2 bg-[#0D1117] border border-cyan-600/40 rounded-md text-gray-200"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              readOnly
             />
           </div>
 
-          {/* Job Role (dummy dropdown) */}
+          {/* Job Role */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Job Role</label>
             <select
@@ -143,7 +168,7 @@ export default function AssignmentPage() {
             </select>
           </div>
 
-          {/* Vehicle (dummy input) */}
+          {/* Vehicle */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Vehicle / Plat Nomor</label>
             <input
@@ -163,9 +188,11 @@ export default function AssignmentPage() {
               onChange={(e) => setRouteFrom(e.target.value)}
               disabled={loadingRoutes}
             >
-              <option value="">{loadingRoutes ? "Loading..." : "Pilih Origin"}</option>
-              {routes.map((r, idx) => (
-                <option key={idx} value={r}>
+              <option value="">
+                {loadingRoutes ? "Loading..." : "Pilih Origin"}
+              </option>
+              {routes.map((r, i) => (
+                <option key={i} value={r}>
                   {r}
                 </option>
               ))}
@@ -181,14 +208,17 @@ export default function AssignmentPage() {
               onChange={(e) => setRouteTo(e.target.value)}
               disabled={loadingRoutes}
             >
-              <option value="">{loadingRoutes ? "Loading..." : "Pilih Destination"}</option>
-              {routes.map((r, idx) => (
-                <option key={idx} value={r}>
+              <option value="">
+                {loadingRoutes ? "Loading..." : "Pilih Destination"}
+              </option>
+              {routes.map((r, i) => (
+                <option key={i} value={r}>
                   {r}
                 </option>
               ))}
             </select>
           </div>
+
         </div>
 
         {/* Buttons */}
