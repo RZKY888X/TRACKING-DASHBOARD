@@ -6,13 +6,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  MapPin,
   Users,
   Activity,
-  Settings,
   LogOut,
   ChevronRight,
-  BarChart3,
   X,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -30,12 +27,9 @@ export function Sidebar() {
 
   const menuItems: MenuItem[] = [
     { icon: Home, label: "Dashboard", href: "/" },
-    //{ icon: MapPin, label: "Vehicle Tracking", href: "/tracking" },
     { icon: Users, label: "User Management", href: "/users" },
     { icon: Activity, label: "Activity Logs", href: "/activity" },
     { icon: Activity, label: "Assignment", href: "/assignment" },
-    //{ icon: BarChart3, label: "Reports", href: "/reports" },
-    //{ icon: Settings, label: "Settings", href: "/settings" },
   ];
 
   const handleLogout = async () => {
@@ -44,20 +38,18 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Sidebar */}
+      {/* ✅ SIDEBAR (z-30, BUKAN z-50 LAGI) */}
       <div
         className={`
-          fixed top-0 left-0 h-screen z-50 w-56 bg-[#0d1421] border-r border-cyan-500/20
+          fixed top-0 left-0 h-screen z-30 w-56 bg-[#0d1421] border-r border-cyan-500/20
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-
-          /* Desktop mode */
           lg:static lg:translate-x-0
         `}
       >
         <div className="flex flex-col h-full">
 
-          {/* Sidebar Header */}
+          {/* Header */}
           <div className="p-4 border-b border-cyan-500/20 flex items-center justify-between">
             <h2 className="text-base font-bold text-cyan-400">Fleet Manager</h2>
             <button
@@ -90,8 +82,8 @@ export function Sidebar() {
             </div>
           )}
 
-          {/* Menu List */}
-          <nav className="flex-1 overflow-y-auto p-3 space-y-0.5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-cyan-600/30">
+          {/* Menu */}
+          <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -108,14 +100,16 @@ export function Sidebar() {
                   }`}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm font-medium flex-1">{item.label}</span>
+                  <span className="text-sm font-medium flex-1">
+                    {item.label}
+                  </span>
                   {isActive && <ChevronRight className="w-3 h-3" />}
                 </Link>
               );
             })}
           </nav>
 
-          {/* Logout Button */}
+          {/* Logout */}
           <div className="p-3 border-t border-cyan-500/20">
             <button
               onClick={handleLogout}
@@ -128,18 +122,18 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Mobile Background Overlay */}
+      {/* ✅ OVERLAY (z-20) */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Toggle Button (Mobile) */}
+      {/* ✅ TOGGLE BUTTON (z-40 PALING ATAS) */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="fixed top-4 left-4 z-30 p-2 bg-[#0d1421] border border-cyan-500/30 rounded-lg hover:bg-cyan-500/10 transition-all text-gray-400 hover:text-cyan-400 lg:hidden"
+        className="fixed top-4 left-4 z-40 p-2 bg-[#0d1421] border border-cyan-500/30 rounded-lg hover:bg-cyan-500/10 transition-all text-gray-400 hover:text-cyan-400 lg:hidden"
       >
         <svg
           className="w-5 h-5"
@@ -147,7 +141,12 @@ export function Sidebar() {
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6h16M4 12h16M4 18h16"
+          />
         </svg>
       </button>
     </>

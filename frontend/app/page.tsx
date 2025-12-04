@@ -33,10 +33,13 @@ export default function Home() {
   });
 
   const [filters, setFilters] = useState<Filters>({
-    date: "",
-    driver: "",
-    route: "",
-  });
+  dateType: "current",
+  dateValue: undefined,
+  driver: "",
+  route: "",
+  departureRoute: "",
+});
+
 
   const [loading, setLoading] = useState<boolean>(true);
 
