@@ -40,18 +40,26 @@ export interface VehicleStats {
 
 
 // ===============================
-// ROUTE + FILTERS (FilterSection)
+// ROUTE DATA (OPTIONAL)
 // ===============================
 export interface RouteData {
   from: string;
   to: string;
 }
 
+
+// ===============================
+// DASHBOARD FILTERS (GLOBAL FILTER)
+// ===============================
 export interface Filters {
-  date: string;
+  dateType: "current" | "daily" | "weekly" | "monthly";
+  dateValue?: string;
+
   driver: string;
   route: string;
+  departureRoute?: string;
 }
+
 
 
 // ===============================
