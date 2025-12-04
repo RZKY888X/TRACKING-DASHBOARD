@@ -9,6 +9,8 @@ interface FilterSectionProps {
   onFilterChange: (filters: Filters) => void;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 export default function FilterSection({ filters, onFilterChange }: FilterSectionProps) {
   const [drivers, setDrivers] = useState<string[]>([]);
   const [routes, setRoutes] = useState<string[]>([]);
@@ -16,7 +18,7 @@ export default function FilterSection({ filters, onFilterChange }: FilterSection
   // === FUNCTIONS HARUS DIATAS USEEFFECT ===
   const fetchDrivers = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/drivers');
+      const res = await fetch(`${API_URL}/api/drivers`);
       const data = await res.json();
 
       if (Array.isArray(data)) {
@@ -36,7 +38,7 @@ export default function FilterSection({ filters, onFilterChange }: FilterSection
 
   const fetchRoutes = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/routes');
+      const res = await fetch(`${API_URL}/api/routes`);
       const data = await res.json();
 
       if (Array.isArray(data)) {

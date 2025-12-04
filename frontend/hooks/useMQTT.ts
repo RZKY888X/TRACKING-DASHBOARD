@@ -10,6 +10,8 @@ interface UseMQTTOptions {
   enabled?: boolean;
 }
 
+const MQTT_BROKER_URL = process.env.NEXT_PUBLIC_MQTT_BROKER_URL;
+
 export function useMQTT(options: UseMQTTOptions = {}) {
   const [messages, setMessages] = useState<MQTTMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -27,7 +29,7 @@ export function useMQTT(options: UseMQTTOptions = {}) {
     // Simulasi koneksi
     const connectMQTT = () => {
       try {
-        // const client = mqtt.connect(options.brokerUrl || 'ws://localhost:8083/mqtt');
+        // const client = mqtt.connect(options.brokerUrl || MQTT_BROKER_URL);
         
         // client.on('connect', () => {
         //   console.log('MQTT: Connected');

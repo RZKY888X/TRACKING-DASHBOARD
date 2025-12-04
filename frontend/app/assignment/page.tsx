@@ -8,6 +8,8 @@ interface User {
   email: string;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 export default function AssignmentPage() {
   const [vehicle, setVehicle] = useState("");
   const [routeFrom, setRouteFrom] = useState("");
@@ -30,7 +32,7 @@ export default function AssignmentPage() {
 
     const fetchUsers = async () => {
       try {
-        const res = await fetch("http://localhost:3001/api/auth/users", {
+        const res = await fetch(`${API_URL}/api/auth/users`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

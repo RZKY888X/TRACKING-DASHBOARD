@@ -18,6 +18,12 @@ const VehicleMap = dynamic(() => import("@/components/VehicleMap"), {
   ssr: false,
 });
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const MQTT_BROKER_URL = process.env.NEXT_PUBLIC_MQTT_BROKER_URL;
+const LORA_API_URL = process.env.NEXT_PUBLIC_LORA_API_URL;
+const LORA_API_KEY = process.env.NEXT_PUBLIC_LORA_API_KEY;
+
+
 export default function Home() {
   const { data: session } = useSession();
   const [data, setData] = useState<VehicleData[]>([]);
@@ -51,7 +57,7 @@ export default function Home() {
         if (filters.route) params.append("route", filters.route);
 
         const res = await fetch(
-          `http://localhost:3001/api/vehicles?${params.toString()}`,
+          `${API_URL}/api/vehicles?${params.toString()}`,
           {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }
@@ -78,7 +84,7 @@ export default function Home() {
 
     const fetchStats = async () => {
       try {
-        const res = await fetch("http://localhost:3001/api/stats", {
+        const res = await fetch(`${API_URL}/api/stats`, {
           headers: { Authorization: `Bearer ${session.accessToken}` },
         });
 
@@ -98,14 +104,14 @@ export default function Home() {
   // === MQTT / LoRaWAN Hooks ===
   const { messages: mqttMessages, isConnected: mqttConnected } = useMQTT({
     enabled: false,
-    brokerUrl: "ws://localhost:8083/mqtt",
+    brokerUrl: MQTT_BROKER_URL,
     topics: ["vehicle/position"],
   });
 
   const { data: loraData, isConnected: loraConnected } = useLoRaWAN({
     enabled: false,
-    apiUrl: "http://localhost:8080",
-    apiKey: "your-api-key",
+    apiUrl: LORA_API_URL,
+    apiKey: LORA_API_KEY,
   });
 
   // === MAP DATA ===

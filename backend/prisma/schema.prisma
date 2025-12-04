@@ -7,29 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//
-// ========== VEHICLE TRACKING MODELS ==========
-//
-
 model Vehicle {
-  id        Int       @id @default(autoincrement()) 
+  id        Int        @id @default(autoincrement())
   name      String
   driver    String?
   route     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   positions Position[]
   statuses  Status[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
 }
 
 model Driver {
-  id    Int    @id @default(autoincrement())
-  name  String @unique
+  id   Int    @id @default(autoincrement())
+  name String @unique
 }
 
 model Route {
-  id    Int    @id @default(autoincrement())
-  name  String @unique
+  id   Int    @id @default(autoincrement())
+  name String @unique
 }
 
 model Position {
@@ -39,7 +35,6 @@ model Position {
   longitude Float
   speed     Float?
   timestamp DateTime @default(now())
-
   vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 }
 
@@ -49,32 +44,39 @@ model Status {
   isOnline  Boolean  @default(true)
   battery   Int?
   timestamp DateTime @default(now())
-
   vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 }
 
-//
-// ========== AUTH MODELS ==========
-//
-
 model User {
-  id            String        @id @default(cuid())
-  email         String        @unique
-  password      String
-  name          String
+  id          String        @id @default(cuid())
+  email       String        @unique
+  password    String
+  name        String
+  role        Role          @default(VIEWER)
+  lastLoginAt DateTime?
+  lastLoginIp String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  jobRole     String?
+  activities  ActivityLog[]
+}
 
-  // Role = hak akses (admin, user, viewer, superadmin)
-  role          Role          @default(VIEWER)
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String
+  entity      String?
+  entityId    String?
+  description String
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Job role = jabatan (Driver, Dispatcher, Mechanic, dll)
-  jobRole       String?
-
-  lastLoginAt   DateTime?
-  lastLoginIp   String?
-
-  activities    ActivityLog[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
 }
 
 enum Role {
@@ -82,25 +84,4 @@ enum Role {
   USER
   ADMIN
   SUPERADMIN
-}
-
-model ActivityLog {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  action      String
-  entity      String?
-  entityId    String?
-  description String
-
-  ipAddress   String?
-  userAgent   String?
-  metadata    Json?
-
-  createdAt   DateTime @default(now())
-
-  @@index([userId])
-  @@index([createdAt])
-  @@index([action])
 }

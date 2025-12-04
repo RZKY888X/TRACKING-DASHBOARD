@@ -10,6 +10,9 @@ interface UseLoRaWANOptions {
   enabled?: boolean;
 }
 
+const LORA_API_URL = process.env.NEXT_PUBLIC_LORA_API_URL;
+const LORA_API_KEY = process.env.NEXT_PUBLIC_LORA_API_KEY;
+
 export function useLoRaWAN(options: UseLoRaWANOptions = {}) {
   const [data, setData] = useState<LoRaWANPayload[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -28,8 +31,8 @@ export function useLoRaWAN(options: UseLoRaWANOptions = {}) {
         // Contoh untuk ChirpStack:
         // const grpc = await import('@chirpstack/chirpstack-api-client');
         // const client = new grpc.ApplicationServiceClient(
-        //   options.apiUrl || 'localhost:8080',
-        //   options.apiKey
+        //   options.apiUrl || LORA_API_URL,
+        //   options.apiKey || LORA_API_KEY
         // );
         
         // Setup event stream
