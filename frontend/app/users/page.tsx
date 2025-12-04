@@ -65,7 +65,7 @@ export default function UsersPage() {
   };
 
   // const API_BASE = "http://localhost:3001/api";
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+  const API_URL = process.env.NEXT_PUBLIC_API_URL; //http://localhost:3001
 
   // Fetch users
   useEffect(() => {
@@ -96,7 +96,7 @@ export default function UsersPage() {
 
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/auth/users`, {
+      const res = await fetch(`${API_URL}/api/auth/users`, {
         headers: {
           Authorization: `Bearer ${session.accessToken}`,
         },
@@ -166,7 +166,7 @@ export default function UsersPage() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/auth/register`, {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session?.accessToken}`,
@@ -203,7 +203,7 @@ export default function UsersPage() {
     if (!selectedUser) return;
 
     try {
-      const res = await fetch(`${API_URL}/auth/users/${selectedUser.id}`, {
+      const res = await fetch(`${API_URL}/api/auth/users/${selectedUser.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${session?.accessToken}`,
@@ -233,7 +233,7 @@ export default function UsersPage() {
     if (!confirm("Are you sure you want to delete this user?")) return;
 
     try {
-      const res = await fetch(`${API_URL}/auth/users/${userId}`, {
+      const res = await fetch(`${API_URL}/api/auth/users/${userId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${session?.accessToken}`,
