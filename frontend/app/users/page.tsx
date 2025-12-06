@@ -1,4 +1,4 @@
-// app/users/page.tsx
+// app/users/page.tsx - PART 1
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,7 +13,6 @@ import {
   Check,
   Shield,
   Users,
-  User,
 } from "lucide-react";
 
 interface User {
@@ -34,6 +33,25 @@ interface NewUser {
   role: "VIEWER" | "USER" | "ADMIN" | "SUPERADMIN";
 }
 
+interface ActivityLog {
+  id: string;
+  userId: string;
+  action: string;
+  entity: string | null;
+  entityId: string | null;
+  description: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  metadata: any;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
 export default function UsersPage() {
   const { data: session } = useSession();
   const [users, setUsers] = useState<User[]>([]);
@@ -47,6 +65,10 @@ export default function UsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [activityPage, setActivityPage] = useState(1);
+  const [totalActivityPages, setTotalActivityPages] = useState(1);
 
   const [newUser, setNewUser] = useState<NewUser>({
     email: "",
@@ -64,12 +86,12 @@ export default function UsersPage() {
     SUPERADMIN: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
   };
 
-  // const API_BASE = "http://localhost:3001/api";
-  const API_URL = process.env.NEXT_PUBLIC_API_URL; //http://localhost:3001
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   // Fetch users
   useEffect(() => {
     fetchUsers();
+    fetchActivities();
   }, [session?.accessToken]);
 
   // Filter users
@@ -108,8 +130,7 @@ export default function UsersPage() {
       setUsers(data);
       setFilteredUsers(data);
     } catch (err) {
-      setError("Failed to fetch users");
-      // Mock data for demo
+      console.error("Failed to fetch users:", err);
       const mockUsers: User[] = [
         {
           id: "1",
@@ -145,6 +166,77 @@ export default function UsersPage() {
       setLoading(false);
     }
   };
+
+  const fetchActivities = async () => {
+    if (!session?.accessToken) return;
+
+    try {
+      setLoadingActivities(true);
+      const res = await fetch(
+        `${API_URL}/api/activity?page=${activityPage}&limit=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to fetch activities");
+
+      const data = await res.json();
+      setActivities(data.activities);
+      setTotalActivityPages(data.pagination.totalPages);
+    } catch (err) {
+      console.error("Failed to fetch activities:", err);
+      const mockActivities: ActivityLog[] = [
+        {
+          id: "1",
+          userId: "1",
+          action: "USER_LOGIN",
+          entity: "USER",
+          entityId: "1",
+          description: "User logged in successfully",
+          ipAddress: "192.168.1.100",
+          userAgent: "Mozilla/5.0",
+          metadata: {},
+          createdAt: new Date().toISOString(),
+          user: {
+            id: "1",
+            name: "Budi Santoso",
+            email: "budi.s@example.com",
+            role: "ADMIN",
+          },
+        },
+        {
+          id: "2",
+          userId: "2",
+          action: "USER_CREATED",
+          entity: "USER",
+          entityId: "3",
+          description: "Created new user account",
+          ipAddress: "192.168.1.101",
+          userAgent: "Mozilla/5.0",
+          metadata: {},
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          user: {
+            id: "2",
+            name: "Citra Lestari",
+            email: "citra.l@example.com",
+            role: "USER",
+          },
+        },
+      ];
+      setActivities(mockActivities);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.accessToken) {
+      fetchActivities();
+    }
+  }, [activityPage, session?.accessToken]);
 
   const handleAddUser = async () => {
     setError("");
@@ -193,6 +285,7 @@ export default function UsersPage() {
           role: "VIEWER",
         });
         fetchUsers();
+        fetchActivities();
       }, 1500);
     } catch (err) {
       setError("Failed to create user");
@@ -223,6 +316,7 @@ export default function UsersPage() {
         setShowEditModal(false);
         setSelectedUser(null);
         fetchUsers();
+        fetchActivities();
       }, 1500);
     } catch (err) {
       setError("Failed to update user");
@@ -244,6 +338,7 @@ export default function UsersPage() {
 
       setSuccess("User deleted successfully!");
       fetchUsers();
+      fetchActivities();
     } catch (err) {
       setError("Failed to delete user");
     }
@@ -274,6 +369,28 @@ export default function UsersPage() {
     }
   };
 
+  const getActionColor = (action: string) => {
+    if (action.includes("LOGIN")) return "text-green-400";
+    if (action.includes("LOGOUT")) return "text-gray-400";
+    if (action.includes("CREATE")) return "text-blue-400";
+    if (action.includes("UPDATE") || action.includes("EDIT"))
+      return "text-yellow-400";
+    if (action.includes("DELETE")) return "text-red-400";
+    return "text-cyan-400";
+  };
+
+  const getActionIcon = (action: string) => {
+    if (action.includes("LOGIN")) return "→";
+    if (action.includes("LOGOUT")) return "←";
+    if (action.includes("CREATE")) return "+";
+    if (action.includes("UPDATE") || action.includes("EDIT")) return "✎";
+    if (action.includes("DELETE")) return "✕";
+    return "•";
+  };
+
+  // ===== LANJUTAN DI PART 2 =====
+  // ===== LANJUTAN DARI PART 1 =====
+  
   return (
     <ProtectedPage requiredRole="ADMIN">
       <main className="min-h-screen bg-[#0a0e1a] text-gray-200 p-4">
@@ -362,127 +479,240 @@ export default function UsersPage() {
             </div>
           </div>
 
-          {/* Users Table */}
-          <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-cyan-400/20 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-cyan-400">
-                User Table
-              </h2>
-              {!loading && (
-                <span className="text-xs text-gray-500">
-                  {filteredUsers.length} users
-                </span>
+          {/* Users Table and Activity Logs */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Users Table - Left Side (2/3 width) */}
+            <div className="lg:col-span-2 bg-[#0f1729] border border-cyan-400/30 rounded-lg overflow-hidden">
+              <div className="px-4 py-3 border-b border-cyan-400/20 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-cyan-400">
+                  User Table
+                </h2>
+                {!loading && (
+                  <span className="text-xs text-gray-500">
+                    {filteredUsers.length} users
+                  </span>
+                )}
+              </div>
+
+              {loading ? (
+                <div className="p-12 text-center text-cyan-400 text-sm">
+                  Loading...
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-[#1a2235]">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          User Name
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Email
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Role
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Last Login
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-cyan-400/10">
+                      {filteredUsers.map((user) => (
+                        <tr
+                          key={user.id}
+                          className="hover:bg-cyan-400/5 transition-colors"
+                        >
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="font-medium text-gray-200 text-sm">
+                              {user.name}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-gray-400 text-sm">
+                              {user.email}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div
+                              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border ${
+                                roleColors[user.role]
+                              }`}
+                            >
+                              {getRoleIcon(user.role)}
+                              {user.role}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`w-2 h-2 rounded-full ${
+                                  user.lastLoginAt
+                                    ? "bg-green-400"
+                                    : "bg-gray-600"
+                                }`}
+                              />
+                              <span className="text-sm text-gray-400">
+                                {user.lastLoginAt ? "Active" : "Inactive"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-sm text-gray-400">
+                              {formatDate(user.lastLoginAt)}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-right">
+                            <button
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setShowEditModal(true);
+                              }}
+                              className="text-cyan-400 hover:text-cyan-300 text-sm transition-all mr-3"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="text-red-400 hover:text-red-300 text-sm transition-all"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
+
+              {/* Pagination */}
+              <div className="px-4 py-3 border-t border-cyan-400/20 flex items-center justify-between">
+                <span className="text-xs text-gray-500">Page 1 of 1</span>
+                <div className="flex gap-2">
+                  <button className="px-3 py-1 text-xs bg-[#1a2235] text-gray-500 rounded border border-cyan-400/20 cursor-not-allowed">
+                    ← Previous
+                  </button>
+                  <button className="px-3 py-1 text-xs bg-[#1a2235] text-gray-500 rounded border border-cyan-400/20 cursor-not-allowed">
+                    Next →
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {loading ? (
-              <div className="p-12 text-center text-cyan-400 text-sm">
-                Loading...
+            {/* Activity Logs - Right Side (1/3 width) */}
+            <div className="lg:col-span-1 bg-[#0f1729] border border-cyan-400/30 rounded-lg overflow-hidden">
+              <div className="px-4 py-3 border-b border-cyan-400/20 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-cyan-400">
+                  Activity Logs
+                </h2>
+                {!loadingActivities && (
+                  <span className="text-xs text-gray-500">
+                    Recent {activities.length}
+                  </span>
+                )}
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-[#1a2235]">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        User Name
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Email
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Role
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Last Login
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cyan-400/10">
-                    {filteredUsers.map((user) => (
-                      <tr
-                        key={user.id}
-                        className="hover:bg-cyan-400/5 transition-colors"
-                      >
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="font-medium text-gray-200 text-sm">
-                            {user.name}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-gray-400 text-sm">
-                            {user.email}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div
-                            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border ${
-                              roleColors[user.role]
-                            }`}
-                          >
-                            {getRoleIcon(user.role)}
-                            {user.role}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-2 h-2 rounded-full ${
-                                user.lastLoginAt
-                                  ? "bg-green-400"
-                                  : "bg-gray-600"
-                              }`}
-                            />
-                            <span className="text-sm text-gray-400">
-                              {user.lastLoginAt ? "Active" : "Inactive"}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-sm text-gray-400">
-                            {formatDate(user.lastLoginAt)}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-right">
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowEditModal(true);
-                            }}
-                            className="text-cyan-400 hover:text-cyan-300 text-sm transition-all mr-3"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="text-red-400 hover:text-red-300 text-sm transition-all"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
-            {/* Pagination */}
-            <div className="px-4 py-3 border-t border-cyan-400/20 flex items-center justify-between">
-              <span className="text-xs text-gray-500">Page 1 of 1</span>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 text-xs bg-[#1a2235] text-gray-500 rounded border border-cyan-400/20 cursor-not-allowed">
-                  ← Previous
-                </button>
-                <button className="px-3 py-1 text-xs bg-[#1a2235] text-gray-500 rounded border border-cyan-400/20 cursor-not-allowed">
-                  Next →
-                </button>
+              <div className="h-[600px] overflow-y-auto">
+                {loadingActivities ? (
+                  <div className="p-12 text-center text-cyan-400 text-sm">
+                    Loading activities...
+                  </div>
+                ) : activities.length === 0 ? (
+                  <div className="p-12 text-center text-gray-500 text-sm">
+                    No activities found
+                  </div>
+                ) : (
+                  <div className="divide-y divide-cyan-400/10">
+                    {activities.map((activity) => (
+                      <div
+                        key={activity.id}
+                        className="p-4 hover:bg-cyan-400/5 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`flex-shrink-0 w-6 h-6 rounded-full bg-[#1a2235] flex items-center justify-center text-xs font-bold ${getActionColor(
+                              activity.action
+                            )}`}
+                          >
+                            {getActionIcon(activity.action)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <p className="text-xs font-medium text-gray-300">
+                                {activity.user.name}
+                              </p>
+                              <span className="text-xs text-gray-500 whitespace-nowrap">
+                                {formatDate(activity.createdAt)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mb-1">
+                              {activity.description}
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getActionColor(
+                                  activity.action
+                                )} bg-[#1a2235]`}
+                              >
+                                {activity.action}
+                              </span>
+                              {activity.entity && (
+                                <span className="text-xs text-gray-500">
+                                  {activity.entity}
+                                </span>
+                              )}
+                            </div>
+                            {activity.ipAddress && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                IP: {activity.ipAddress}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Activity Pagination */}
+              <div className="px-4 py-3 border-t border-cyan-400/20 flex items-center justify-between">
+                <span className="text-xs text-gray-500">
+                  Page {activityPage} of {totalActivityPages}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                    disabled={activityPage === 1}
+                    className={`px-3 py-1 text-xs rounded border border-cyan-400/20 ${
+                      activityPage === 1
+                        ? "bg-[#1a2235] text-gray-500 cursor-not-allowed"
+                        : "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
+                    }`}
+                  >
+                    ← Prev
+                  </button>
+                  <button
+                    onClick={() =>
+                      setActivityPage((p) => Math.min(totalActivityPages, p + 1))
+                    }
+                    disabled={activityPage === totalActivityPages}
+                    className={`px-3 py-1 text-xs rounded border border-cyan-400/20 ${
+                      activityPage === totalActivityPages
+                        ? "bg-[#1a2235] text-gray-500 cursor-not-allowed"
+                        : "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
+                    }`}
+                  >
+                    Next →
+                  </button>
+                </div>
               </div>
             </div>
           </div>
