@@ -774,3 +774,60 @@ app.listen(PORT, () => {
   console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`🔐 JWT Secret configured: ${!!process.env.JWT_SECRET}`);
 });
+
+
+/* ======================================================
+   ASSIGNMENT
+====================================================== */
+// POST /api/assignments
+app.post("/api/assignments", async (req, res) => {
+  try {
+    const { fullName, email, jobRole, vehicle, routeFrom, routeTo } = req.body;
+
+    if (!fullName || !email || !jobRole || !vehicle || !routeFrom || !routeTo) {
+      return res.status(400).json({ error: "Semua field wajib diisi" });
+    }
+
+    // Find the user
+    const user = await prisma.user.findFirst({
+      where: { email },
+    });
+    if (!user) return res.status(404).json({ error: "User tidak ditemukan" });
+
+    // Find/Create Vehicle
+    let veh = await prisma.vehicle.findFirst({ where: { name: vehicle } });
+    if (!veh) {
+      veh = await prisma.vehicle.create({
+        data: { name: vehicle },
+      });
+    }
+
+    // Find or create Route From
+    let from = await prisma.route.findFirst({ where: { name: routeFrom } });
+    if (!from) {
+      from = await prisma.route.create({ data: { name: routeFrom } });
+    }
+
+    // Find or create Route To
+    let to = await prisma.route.findFirst({ where: { name: routeTo } });
+    if (!to) {
+      to = await prisma.route.create({ data: { name: routeTo } });
+    }
+
+    // Save Assignment
+    const assignment = await prisma.assignment.create({
+      data: {
+        userId: user.id,
+        vehicleId: veh.id,
+        fromId: from.id,
+        toId: to.id,
+        jobRole,
+      },
+    });
+
+    return res.json({ message: "Assignment saved", assignment });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});

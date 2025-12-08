@@ -9,74 +9,80 @@ async function main() {
   console.log("🌱 Seeding database...");
 
   // ============================================
-  // 1️⃣ CLEAR EXISTING DATA (RESET)
+  // 1️⃣ CLEAR EXISTING DATA
   // ============================================
+  await prisma.assignment.deleteMany();
   await prisma.status.deleteMany();
   await prisma.position.deleteMany();
   await prisma.vehicle.deleteMany();
   await prisma.driver.deleteMany();
   await prisma.route.deleteMany();
   await prisma.user.deleteMany();
-
   console.log("🧹 Database cleared.");
 
-
   // ============================================
-  // 2️⃣ USER SEED (REAL DATA — DO NOT REMOVE)
+  // 2️⃣ USER SEED
   // ============================================
-
-  const hashedPassword = await bcrypt.hash("Pw123", 10);
-
-  const users = [
-    { email: "viewer@example.com",      password: hashedPassword, name: "Viewer User", role: "VIEWER" },
-    { email: "user@example.com",        password: hashedPassword, name: "Regular User", role: "USER" },
-    { email: "admin@example.com",       password: hashedPassword, name: "Admin User", role: "ADMIN" },
-    { email: "superadmin@example.com",  password: hashedPassword, name: "Super Admin", role: "SUPERADMIN" },
+  const usersData = [
+    { email: "viewer@example.com",      password: "Pw123", name: "Viewer User", role: "VIEWER", jobRole: "Viewer" },
+    { email: "user@example.com",        password: "Pw123", name: "Regular User", role: "USER", jobRole: "Driver" },
+    { email: "admin@example.com",       password: "Pw123", name: "Admin User", role: "ADMIN", jobRole: "Supervisor" },
+    { email: "superadmin@example.com",  password: "Pw123", name: "Super Admin", role: "SUPERADMIN", jobRole: "Admin" },
   ];
 
-  await prisma.user.createMany({ data: users });
-
+  const users = [];
+  for (const u of usersData) {
+    const hashedPassword = await bcrypt.hash(u.password, 10);
+    const createdUser = await prisma.user.create({
+      data: { ...u, password: hashedPassword },
+    });
+    users.push(createdUser);
+  }
   console.log("👥 Users inserted:", users.length);
 
-
   // ============================================
-  // 3️⃣ MASTER DATA (Driver + Route + Vehicle)
+  // 3️⃣ DRIVERS & ROUTES
   // ============================================
-
   const driverNames = ["John Doe", "Jane Smith", "Bob Johnson"];
-  const routeNames = [
-    "Route 1 - Jakarta to Bandung",
-    "Route 2 - Surabaya to Malang",
-    "Route 3 - Yogyakarta to Semarang",
+  const drivers = [];
+  for (const name of driverNames) {
+    const d = await prisma.driver.create({ data: { name } });
+    drivers.push(d);
+  }
+
+  const routeData = [
+    { name: "Route 1", origin: "Jakarta", departure: "Bandung" },
+    { name: "Route 2", origin: "Surabaya", departure: "Malang" },
+    { name: "Route 3", origin: "Yogyakarta", departure: "Semarang" },
   ];
 
-  await prisma.driver.createMany({
-    data: driverNames.map((name) => ({ name })),
-  });
+  const routes = [];
+  for (const r of routeData) {
+    const route = await prisma.route.create({ data: r });
+    routes.push(route);
+  }
 
-  await prisma.route.createMany({
-    data: routeNames.map((name) => ({ name })),
-  });
-
+  // ============================================
+  // 4️⃣ VEHICLES
+  // ============================================
   const vehiclesData = [
-    { name: "Truck A", driver: "John Doe", route: routeNames[0] },
-    { name: "Truck B", driver: "Jane Smith", route: routeNames[1] },
-    { name: "Van C",   driver: "Bob Johnson", route: routeNames[2] },
-    { name: "Bus D",   driver: "John Doe", route: routeNames[0] },
-    { name: "Car E",   driver: "Jane Smith", route: routeNames[1] },
+    { name: "Truck A", driver: "John Doe", route: "Route 1" },
+    { name: "Truck B", driver: "Jane Smith", route: "Route 2" },
+    { name: "Van C",   driver: "Bob Johnson", route: "Route 3" },
+    { name: "Bus D",   driver: "John Doe", route: "Route 1" },
+    { name: "Car E",   driver: "Jane Smith", route: "Route 2" },
   ];
 
-  await prisma.vehicle.createMany({ data: vehiclesData });
-
+  const insertedVehicles = [];
+  for (const v of vehiclesData) {
+    const vehicle = await prisma.vehicle.create({ data: v });
+    insertedVehicles.push(vehicle);
+  }
   console.log("🚚 Vehicles, Drivers & Routes inserted.");
 
-
   // ============================================
-  // 4️⃣ MOCK TELEMETRY DATA (TEMPORARY UNTIL MQTT/LORAWAN)
+  // 5️⃣ MOCK TELEMETRY DATA
   // ============================================
-
-  const insertedVehicles = await prisma.vehicle.findMany();
-
   const positions = [];
   const statuses = [];
 
@@ -97,21 +103,33 @@ async function main() {
 
   await prisma.position.createMany({ data: positions });
   await prisma.status.createMany({ data: statuses });
-
   console.log(`📍 Telemetry mock added for ${insertedVehicles.length} vehicles.`);
 
+  // ============================================
+  // 6️⃣ MOCK ASSIGNMENT DATA
+  // ============================================
+  const assignmentsData = [
+    {
+      userId: users[1].id, // Regular User
+      vehicleId: insertedVehicles[0].id,
+      fromId: routes[0].id,
+      toId: routes[1].id,
+      jobRole: "Driver",
+    },
+    {
+      userId: users[2].id, // Admin User
+      vehicleId: insertedVehicles[1].id,
+      fromId: routes[1].id,
+      toId: routes[2].id,
+      jobRole: "Supervisor",
+    },
+  ];
 
-  // ============================================
-  // 5️⃣ FUTURE SOURCE (MQTT / LoRaWAN)
-  // ============================================
-  // Uncomment when live data connected:
-  //
-  // mqtt.subscribe("lorawan/device/+/data");
-  // mqtt.on("message", async (payload) => {
-  //     await prisma.position.create(...);
-  //     await prisma.status.update(...);
-  // });
-  //
+  for (const a of assignmentsData) {
+    await prisma.assignment.create({ data: a });
+  }
+
+  console.log("📌 Assignments inserted:", assignmentsData.length);
 
   console.log("🎉 Seed completed successfully!");
 }

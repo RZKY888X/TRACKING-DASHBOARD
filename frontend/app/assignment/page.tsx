@@ -69,7 +69,7 @@ export default function AssignmentPage() {
   }, []);
 
   /* =============================
-            RESET FORM
+         RESET FORM
   ============================== */
   const resetForm = () => {
     setVehicle("");
@@ -83,23 +83,36 @@ export default function AssignmentPage() {
   /* =============================
          SAVE ASSIGNMENT
   ============================== */
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!fullName || !email || !jobRole || !vehicle || !routeFrom || !routeTo) {
       alert("❌ Semua kolom harus diisi");
       return;
     }
 
-    const assignmentData = {
-      fullName,
-      email,
-      jobRole,
-      vehicle,
-      routeFrom,
-      routeTo,
-    };
+    const token = localStorage.getItem("token");
 
-    console.log("📌 Assignment Saved:", assignmentData);
-    alert("✅ Assignment berhasil disimpan (cek console log)");
+    const res = await fetch(`${API_URL}/api/assignments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        fullName,
+        email,
+        jobRole,
+        vehicle,
+        routeFrom,
+        routeTo,
+      }),
+    });
+
+    if (!res.ok) {
+      alert("❌ Gagal menyimpan assignment");
+      return;
+    }
+
+    alert("✅ Assignment berhasil disimpan");
     resetForm();
   };
 
@@ -116,7 +129,6 @@ export default function AssignmentPage() {
       {/* Form */}
       <div className="w-full bg-[#0F172A] border border-cyan-500/40 rounded-xl p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
           {/* Nama Lengkap */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Nama Lengkap</label>
@@ -143,14 +155,13 @@ export default function AssignmentPage() {
             </select>
           </div>
 
-          {/* Email Otomatis */}
+          {/* Email */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Email</label>
             <input
               type="email"
               className="w-full px-4 py-2 bg-[#0D1117] border border-cyan-600/40 rounded-md text-gray-200"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
               readOnly
             />
           </div>
@@ -220,7 +231,6 @@ export default function AssignmentPage() {
               ))}
             </select>
           </div>
-
         </div>
 
         {/* Buttons */}
