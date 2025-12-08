@@ -28,8 +28,7 @@ export function Sidebar() {
   const menuItems: MenuItem[] = [
     { icon: Home, label: "Dashboard", href: "/" },
     { icon: Users, label: "User Management", href: "/users" },
-    { icon: Activity, label: "Activity Logs", href: "/activity" },
-    { icon: Activity, label: "Assignment", href: "/assignment" },
+    { icon: Activity, label: "Assignment", href: "/assignment" }  ,
   ];
 
   const handleLogout = async () => {

@@ -1,4 +1,5 @@
-// backend/index.js - FULL COMPLETE VERSION WITH AUTH & UPDATES
+// backend/index.js
+// FULL backend (updated) — adds activity logging compatible with Prisma schema where ActivityLog.userId is optional
 
 const express = require("express");
 const cors = require("cors");
@@ -15,6 +16,7 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.set("trust proxy", true); // respect X-Forwarded-For etc
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
@@ -87,23 +89,74 @@ mqttClient.on("message", async (topic, message) => {
 });
 
 /* ======================================================
-   ASSIGMENT APIs
+   HELPER: write activity log
+   userId is optional (nullable) to match updated Prisma schema
+   safe wrapper so logging failure won't break endpoints
+====================================================== */
+async function writeActivityLog({
+  userId,
+  action,
+  entity = null,
+  entityId = null,
+  description = "",
+  req = null,
+  metadata = null,
+}) {
+  try {
+    // ================================
+    // 🔌 Toggle Activity Logs (ON/OFF)
+    // ================================
+    if (process.env.ACTIVITY_LOGS_ENABLED === "false") {
+      return; // langsung keluar: logging dimatikan
+    }
+
+    // normalize userId: only accept string values, otherwise set null
+    const uid =
+      typeof userId === "string" && userId.trim() !== ""
+        ? userId
+        : null;
+
+    await prisma.activityLog.create({
+      data: {
+        userId: uid,
+        action,
+        entity,
+        entityId: entityId != null ? String(entityId) : null,
+        description,
+        ipAddress: req?.ip || null,
+        userAgent: req?.headers?.["user-agent"] || null,
+        metadata: metadata || {},
+      },
+    });
+  } catch (err) {
+    console.error("Failed to write activity log:", err.message || err);
+  }
+}
+
+
+/* ======================================================
+   ASSIGNMENT APIs
 ====================================================== */
 app.get("/api/assignment/users", authMiddleware, async (req, res) => {
   try {
-;    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true
-      },
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true },
       orderBy: { createdAt: "desc" }
+    });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "USER",
+      description: "Viewed assignment users list",
+      req,
     });
 
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-})
+});
 
 /* ======================================================
    AUTHENTICATION APIs
@@ -126,16 +179,13 @@ app.post("/api/auth/register", authMiddleware, roleMiddleware(["ADMIN", "SUPERAD
       select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
 
-    await prisma.activityLog.create({
-      data: {
-        userId: req.user.id,
-        action: "CREATE",
-        entity: "USER",
-        entityId: user.id,
-        description: `Created new user: ${user.email}`,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-      },
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "CREATE",
+      entity: "USER",
+      entityId: user.id,
+      description: `Created new user: ${user.email}`,
+      req,
     });
 
     res.json({ success: true, user });
@@ -144,93 +194,153 @@ app.post("/api/auth/register", authMiddleware, roleMiddleware(["ADMIN", "SUPERAD
   }
 });
 
+// LOGIN
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+    if (!user) {
+      // Optionally log failed login WITHOUT userId (userId nullable)
+      await writeActivityLog({
+        userId: null,
+        action: "LOGIN_FAILED",
+        entity: "USER",
+        description: `Login failed for email: ${email}`,
+        req,
+      });
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) return res.status(401).json({ error: "Invalid credentials" });
+    if (!isPasswordValid) {
+      await writeActivityLog({
+        userId: user.id,
+        action: "LOGIN_FAILED",
+        entity: "USER",
+        entityId: user.id,
+        description: `Login failed (wrong password) for user ${user.email}`,
+        req,
+      });
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
 
-    await prisma.user.update({ 
-      where: { id: user.id }, 
-      data: { lastLoginAt: new Date(), lastLoginIp: req.ip } 
+    // update last login fields
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), lastLoginIp: req.ip }
     });
 
-    await prisma.activityLog.create({
-      data: { 
-        userId: user.id, 
-        action: "LOGIN", 
-        description: `User logged in`, 
-        ipAddress: req.ip, 
-        userAgent: req.headers["user-agent"] 
-      },
+    // write login activity (with ip + userAgent)
+    await writeActivityLog({
+      userId: user.id,
+      action: "LOGIN",
+      entity: "USER",
+      entityId: user.id,
+      description: `User logged in`,
+      req,
     });
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role }, 
-      process.env.JWT_SECRET, 
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
-    
-    const { password: _, ...userWithoutPassword } = user;
 
+    const { password: _, ...userWithoutPassword } = user;
     res.json({ success: true, token, user: userWithoutPassword });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// LOGOUT
+app.post("/api/auth/logout", authMiddleware, async (req, res) => {
+  try {
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "LOGOUT",
+      entity: "USER",
+      entityId: req.user?.id,
+      description: "User logged out",
+      req,
+    });
+
+    // If you have sessions or refresh tokens, revoke here.
+
+    res.json({ success: true, message: "Logged out" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PROFILE
 app.get("/api/auth/profile", authMiddleware, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, email: true, name: true, role: true, lastLoginAt: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, lastLoginAt: true, createdAt: true, profileImage: true },
     });
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "USER",
+      entityId: req.user?.id,
+      description: "Viewed own profile",
+      req,
+    });
+
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// GET ALL USERS (ADMIN)
 app.get("/api/auth/users", authMiddleware, roleMiddleware(["ADMIN", "SUPERADMIN"]), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, email: true, name: true, role: true, lastLoginAt: true, lastLoginIp: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, lastLoginAt: true, lastLoginIp: true, createdAt: true, profileImage: true },
       orderBy: { createdAt: "desc" },
     });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "USER",
+      description: "Viewed users list",
+      req,
+    });
+
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// UPDATE USER (ADMIN)
 app.put("/api/auth/users/:id", authMiddleware, roleMiddleware(["ADMIN", "SUPERADMIN"]), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, role, email } = req.body;
-    
+
     const user = await prisma.user.update({
       where: { id },
       data: { ...(name && { name }), ...(role && { role }), ...(email && { email }) },
       select: { id: true, email: true, name: true, role: true, updatedAt: true },
     });
 
-    await prisma.activityLog.create({
-      data: {
-        userId: req.user.id,
-        action: "UPDATE",
-        entity: "USER",
-        entityId: id,
-        description: `Updated user: ${user.email}`,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        metadata: { changes: req.body },
-      },
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "UPDATE",
+      entity: "USER",
+      entityId: id,
+      description: `Updated user: ${user.email}`,
+      req,
+      metadata: { changes: req.body },
     });
 
     res.json({ success: true, user });
@@ -239,21 +349,19 @@ app.put("/api/auth/users/:id", authMiddleware, roleMiddleware(["ADMIN", "SUPERAD
   }
 });
 
+// DELETE USER (ADMIN)
 app.delete("/api/auth/users/:id", authMiddleware, roleMiddleware(["ADMIN", "SUPERADMIN"]), async (req, res) => {
   try {
     const { id } = req.params;
     const user = await prisma.user.delete({ where: { id } });
 
-    await prisma.activityLog.create({
-      data: { 
-        userId: req.user.id, 
-        action: "DELETE", 
-        entity: "USER", 
-        entityId: id, 
-        description: `Deleted user: ${user.email}`, 
-        ipAddress: req.ip, 
-        userAgent: req.headers["user-agent"] 
-      },
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "DELETE",
+      entity: "USER",
+      entityId: id,
+      description: `Deleted user: ${user.email}`,
+      req,
     });
 
     res.json({ success: true, message: "User deleted" });
@@ -262,6 +370,7 @@ app.delete("/api/auth/users/:id", authMiddleware, roleMiddleware(["ADMIN", "SUPE
   }
 });
 
+// CHANGE PASSWORD
 app.post("/api/auth/change-password", authMiddleware, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -269,22 +378,19 @@ app.post("/api/auth/change-password", authMiddleware, async (req, res) => {
 
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
-    
+
     if (!isPasswordValid) return res.status(401).json({ error: "Current password is incorrect" });
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({ where: { id: req.user.id }, data: { password: hashedPassword } });
 
-    await prisma.activityLog.create({
-      data: { 
-        userId: req.user.id, 
-        action: "UPDATE", 
-        entity: "USER", 
-        entityId: req.user.id, 
-        description: "Changed password", 
-        ipAddress: req.ip, 
-        userAgent: req.headers["user-agent"] 
-      },
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "UPDATE",
+      entity: "USER",
+      entityId: req.user?.id,
+      description: "Changed password",
+      req,
     });
 
     res.json({ success: true, message: "Password changed successfully" });
@@ -298,7 +404,7 @@ app.post("/api/auth/change-password", authMiddleware, async (req, res) => {
 ====================================================== */
 app.get("/api/activity", authMiddleware, async (req, res) => {
   try {
-    const { page = 1, limit = 20, userId, action, entity, startDate, endDate } = req.query;
+    const { page = 1, limit = 20, userId, action, entity, startDate, endDate, search } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = {};
@@ -314,6 +420,16 @@ app.get("/api/activity", authMiddleware, async (req, res) => {
       if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
+    if (search) {
+      where.OR = [
+        { description: { contains: search, mode: "insensitive" } },
+        { entity: { contains: search, mode: "insensitive" } },
+        { action: { contains: search, mode: "insensitive" } },
+        { ipAddress: { contains: search, mode: "insensitive" } },
+        { userAgent: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
     const [activities, total] = await Promise.all([
       prisma.activityLog.findMany({
         where,
@@ -325,10 +441,46 @@ app.get("/api/activity", authMiddleware, async (req, res) => {
       prisma.activityLog.count({ where }),
     ]);
 
+    // Log that user viewed activity list (nullable userId handled)
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "ACTIVITY_LOG",
+      description: "Viewed activity logs",
+      req,
+    });
+
     res.json({
       activities,
       pagination: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / parseInt(limit)) },
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Activity detail
+app.get("/api/activity/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const log = await prisma.activityLog.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, name: true, email: true, role: true } } }
+    });
+
+    if (!log) return res.status(404).json({ error: "Activity log not found" });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "ACTIVITY_LOG",
+      entityId: id,
+      description: `Viewed activity log ${id}`,
+      req,
+    });
+
+    res.json(log);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -339,11 +491,18 @@ app.get("/api/activity", authMiddleware, async (req, res) => {
 ====================================================== */
 app.get("/api/vehicles", authMiddleware, async (req, res) => {
   try {
-    const vehicles = await prisma.vehicle.findMany({ 
-      include: { 
-        positions: { orderBy: { timestamp: "desc" }, take: 1 } 
-      } 
+    const vehicles = await prisma.vehicle.findMany({
+      include: { positions: { orderBy: { timestamp: "desc" }, take: 1 } }
     });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "VEHICLE",
+      description: "Viewed vehicle list",
+      req,
+    });
+
     res.json(vehicles);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -352,8 +511,8 @@ app.get("/api/vehicles", authMiddleware, async (req, res) => {
 
 app.get("/api/vehicles/latest", authMiddleware, async (req, res) => {
   try {
-    const vehicles = await prisma.vehicle.findMany({ 
-      include: { positions: { orderBy: { timestamp: "desc" }, take: 1 } } 
+    const vehicles = await prisma.vehicle.findMany({
+      include: { positions: { orderBy: { timestamp: "desc" }, take: 1 } }
     });
 
     const flat = vehicles.map((v) => ({
@@ -367,6 +526,14 @@ app.get("/api/vehicles/latest", authMiddleware, async (req, res) => {
       timestamp: v.positions[0]?.timestamp || null,
     }));
 
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "VEHICLE",
+      description: "Viewed vehicles latest snapshot",
+      req,
+    });
+
     res.json(flat);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -377,16 +544,13 @@ app.post("/api/vehicles", authMiddleware, roleMiddleware(["USER", "ADMIN", "SUPE
   try {
     const vehicle = await prisma.vehicle.create({ data: req.body });
 
-    await prisma.activityLog.create({
-      data: {
-        userId: req.user.id,
-        action: "CREATE",
-        entity: "VEHICLE",
-        entityId: vehicle.id.toString(),
-        description: `Created vehicle: ${vehicle.name}`,
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-      },
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "CREATE",
+      entity: "VEHICLE",
+      entityId: vehicle.id.toString(),
+      description: `Created vehicle: ${vehicle.name}`,
+      req,
     });
 
     res.json(vehicle);
@@ -398,9 +562,11 @@ app.post("/api/vehicles", authMiddleware, roleMiddleware(["USER", "ADMIN", "SUPE
 app.post("/api/vehicle-position", authMiddleware, async (req, res) => {
   try {
     const { vehicleId, latitude, longitude, speed } = req.body;
-    const pos = await prisma.position.create({ 
-      data: { vehicleId: Number(vehicleId), latitude, longitude, speed } 
+    const pos = await prisma.position.create({
+      data: { vehicleId: Number(vehicleId), latitude, longitude, speed }
     });
+
+    // by default we do not log every position create to avoid noise
     res.json({ success: true, data: pos });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -410,10 +576,20 @@ app.post("/api/vehicle-position", authMiddleware, async (req, res) => {
 app.get("/api/vehicles/:id", authMiddleware, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const vehicle = await prisma.vehicle.findUnique({ 
-      where: { id }, 
-      include: { positions: true } 
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id },
+      include: { positions: true }
     });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "VEHICLE",
+      entityId: id,
+      description: `Viewed vehicle detail: ${id}`,
+      req,
+    });
+
     res.json(vehicle);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -432,6 +608,16 @@ app.get("/api/vehicle-position/history/:id", authMiddleware, async (req, res) =>
       where: { vehicleId: id, timestamp: { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) } },
       orderBy: { timestamp: "asc" },
     });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "POSITION",
+      entityId: id,
+      description: `Viewed position history for vehicle ${id}`,
+      req,
+    });
+
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -444,6 +630,15 @@ app.get("/api/vehicle-position/history/:id", authMiddleware, async (req, res) =>
 app.get("/api/drivers", authMiddleware, async (req, res) => {
   try {
     const drivers = await prisma.driver.findMany();
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "DRIVER",
+      description: "Viewed drivers list",
+      req,
+    });
+
     res.json(drivers.map((d) => d.name));
   } catch (err) {
     console.error("Drivers fetch error:", err);
@@ -455,6 +650,16 @@ app.post("/api/drivers", authMiddleware, roleMiddleware(["USER", "ADMIN", "SUPER
   try {
     const { name } = req.body;
     const driver = await prisma.driver.create({ data: { name } });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "CREATE",
+      entity: "DRIVER",
+      entityId: driver.id,
+      description: `Created driver: ${name}`,
+      req,
+    });
+
     res.json(driver);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -464,6 +669,15 @@ app.post("/api/drivers", authMiddleware, roleMiddleware(["USER", "ADMIN", "SUPER
 app.get("/api/routes", authMiddleware, async (req, res) => {
   try {
     const routes = await prisma.route.findMany();
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "ROUTE",
+      description: "Viewed routes list",
+      req,
+    });
+
     res.json(routes.map((r) => r.name));
   } catch (err) {
     console.error("Routes fetch error:", err);
@@ -475,6 +689,16 @@ app.post("/api/routes", authMiddleware, roleMiddleware(["USER", "ADMIN", "SUPERA
   try {
     const { name } = req.body;
     const route = await prisma.route.create({ data: { name } });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "CREATE",
+      entity: "ROUTE",
+      entityId: route.id,
+      description: `Created route: ${name}`,
+      req,
+    });
+
     res.json(route);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -500,6 +724,14 @@ app.get("/api/route", authMiddleware, async (req, res) => {
     const coordinates = response.data.routes[0].geometry.coordinates;
     const coords = coordinates.map(([lng, lat]) => ({ lat, lng }));
 
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "OSRM_ROUTE",
+      description: `Requested route from ${origin} to ${destination}`,
+      req,
+    });
+
     res.json({ coords });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -519,6 +751,14 @@ app.get("/api/stats", authMiddleware, async (req, res) => {
     const avgSpeed = latest.length > 0 ? (latest.reduce((acc, v) => acc + v.speed, 0) / latest.length).toFixed(1) : 0;
 
     const stats = { idle, onTrip, completed: 0, avgTripDuration: "-", avgSpeed: Number(avgSpeed), onTime: 0, delay: 0, early: 0 };
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "STATS",
+      description: "Viewed vehicle stats",
+      req,
+    });
 
     res.json(stats);
   } catch (err) {

@@ -63,8 +63,8 @@ model User {
 }
 
 model ActivityLog {
-  id          String   @id @default(cuid())
-  userId      String
+  id          String   @id @default(cuid())   // WAJIB required
+  userId      String?                           // baru ini yang optional
   action      String
   entity      String?
   entityId    String?
@@ -73,12 +73,13 @@ model ActivityLog {
   userAgent   String?
   metadata    Json?
   createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
   @@index([action])
 }
+
 
 enum Role {
   VIEWER

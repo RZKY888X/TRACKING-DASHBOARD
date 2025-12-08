@@ -546,44 +546,47 @@ export default function UsersPage() {
                               }`}
                             >
                               {getRoleIcon(user.role)}
-                              {user.role}
+                                                            {user.role}
                             </div>
                           </td>
+
+                          {/* Status */}
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`w-2 h-2 rounded-full ${
-                                  user.lastLoginAt
-                                    ? "bg-green-400"
-                                    : "bg-gray-600"
-                                }`}
-                              />
-                              <span className="text-sm text-gray-400">
-                                {user.lastLoginAt ? "Active" : "Inactive"}
+                            {user.lastLoginAt ? (
+                              <span className="text-green-400 text-xs font-medium">
+                                Active
                               </span>
-                            </div>
+                            ) : (
+                              <span className="text-gray-500 text-xs font-medium">
+                                Inactive
+                              </span>
+                            )}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="text-sm text-gray-400">
-                              {formatDate(user.lastLoginAt)}
-                            </div>
+
+                          {/* Last Login */}
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-400 text-xs">
+                            {formatDate(user.lastLoginAt)}
                           </td>
+
+                          {/* Actions */}
                           <td className="px-4 py-3 whitespace-nowrap text-right">
-                            <button
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setShowEditModal(true);
-                              }}
-                              className="text-cyan-400 hover:text-cyan-300 text-sm transition-all mr-3"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(user.id)}
-                              className="text-red-400 hover:text-red-300 text-sm transition-all"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setShowEditModal(true);
+                                }}
+                                className="px-2 py-1 bg-yellow-500/20 text-yellow-300 text-xs rounded border border-yellow-500/30 hover:bg-yellow-500/30"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="px-2 py-1 bg-red-500/20 text-red-300 text-xs rounded border border-red-500/30 hover:bg-red-500/30"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -591,388 +594,252 @@ export default function UsersPage() {
                   </table>
                 </div>
               )}
-
-              {/* Pagination */}
-              <div className="px-4 py-3 border-t border-cyan-400/20 flex items-center justify-between">
-                <span className="text-xs text-gray-500">Page 1 of 1</span>
-                <div className="flex gap-2">
-                  <button className="px-3 py-1 text-xs bg-[#1a2235] text-gray-500 rounded border border-cyan-400/20 cursor-not-allowed">
-                    ← Previous
-                  </button>
-                  <button className="px-3 py-1 text-xs bg-[#1a2235] text-gray-500 rounded border border-cyan-400/20 cursor-not-allowed">
-                    Next →
-                  </button>
-                </div>
-              </div>
             </div>
 
-            {/* Activity Logs - Right Side (1/3 width) */}
-            <div className="lg:col-span-1 bg-[#0f1729] border border-cyan-400/30 rounded-lg overflow-hidden">
+            {/* Activity Log - Right Side */}
+            <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg overflow-hidden">
               <div className="px-4 py-3 border-b border-cyan-400/20 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-cyan-400">
                   Activity Logs
                 </h2>
-                {!loadingActivities && (
-                  <span className="text-xs text-gray-500">
-                    Recent {activities.length}
-                  </span>
-                )}
               </div>
 
-              <div className="h-[600px] overflow-y-auto">
-                {loadingActivities ? (
-                  <div className="p-12 text-center text-cyan-400 text-sm">
-                    Loading activities...
-                  </div>
-                ) : activities.length === 0 ? (
-                  <div className="p-12 text-center text-gray-500 text-sm">
-                    No activities found
-                  </div>
-                ) : (
-                  <div className="divide-y divide-cyan-400/10">
-                    {activities.map((activity) => (
-                      <div
-                        key={activity.id}
-                        className="p-4 hover:bg-cyan-400/5 transition-colors"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`flex-shrink-0 w-6 h-6 rounded-full bg-[#1a2235] flex items-center justify-center text-xs font-bold ${getActionColor(
-                              activity.action
-                            )}`}
-                          >
-                            {getActionIcon(activity.action)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <p className="text-xs font-medium text-gray-300">
-                                {activity.user.name}
-                              </p>
-                              <span className="text-xs text-gray-500 whitespace-nowrap">
-                                {formatDate(activity.createdAt)}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-400 mb-1">
-                              {activity.description}
-                            </p>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getActionColor(
-                                  activity.action
-                                )} bg-[#1a2235]`}
-                              >
-                                {activity.action}
-                              </span>
-                              {activity.entity && (
-                                <span className="text-xs text-gray-500">
-                                  {activity.entity}
-                                </span>
-                              )}
-                            </div>
-                            {activity.ipAddress && (
-                              <p className="text-xs text-gray-600 mt-1">
-                                IP: {activity.ipAddress}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Activity Pagination */}
-              <div className="px-4 py-3 border-t border-cyan-400/20 flex items-center justify-between">
-                <span className="text-xs text-gray-500">
-                  Page {activityPage} of {totalActivityPages}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
-                    disabled={activityPage === 1}
-                    className={`px-3 py-1 text-xs rounded border border-cyan-400/20 ${
-                      activityPage === 1
-                        ? "bg-[#1a2235] text-gray-500 cursor-not-allowed"
-                        : "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
-                    }`}
-                  >
-                    ← Prev
-                  </button>
-                  <button
-                    onClick={() =>
-                      setActivityPage((p) => Math.min(totalActivityPages, p + 1))
-                    }
-                    disabled={activityPage === totalActivityPages}
-                    className={`px-3 py-1 text-xs rounded border border-cyan-400/20 ${
-                      activityPage === totalActivityPages
-                        ? "bg-[#1a2235] text-gray-500 cursor-not-allowed"
-                        : "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
-                    }`}
-                  >
-                    Next →
-                  </button>
+              {loadingActivities ? (
+                <div className="p-6 text-center text-cyan-400 text-sm">
+                  Loading logs...
                 </div>
+              ) : (
+                <div className="max-h-[460px] overflow-y-auto custom-scroll">
+                  {activities.length === 0 ? (
+                    <p className="p-4 text-gray-500 text-sm">
+                      No activity records found.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-cyan-400/10">
+                      {activities.map((log) => (
+                        <li key={log.id} className="p-4 hover:bg-cyan-400/5">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`text-lg font-bold ${getActionColor(
+                                log.action
+                              )}`}
+                            >
+                              {getActionIcon(log.action)}
+                            </span>
+                            <div className="flex-1">
+                              <p className="text-sm text-gray-300">
+                                <span className="font-semibold text-cyan-400">
+                                  {log.user.name}
+                                </span>{" "}
+                                {log.description}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {formatDate(log.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {/* Pagination */}
+              <div className="p-3 flex justify-between items-center border-t border-cyan-400/20 text-xs">
+                <button
+                  disabled={activityPage === 1}
+                  onClick={() => setActivityPage(activityPage - 1)}
+                  className="px-3 py-1 bg-[#1a2235] rounded disabled:opacity-30"
+                >
+                  Prev
+                </button>
+
+                <span className="text-gray-400">
+                  Page {activityPage} / {totalActivityPages}
+                </span>
+
+                <button
+                  disabled={activityPage === totalActivityPages}
+                  onClick={() => setActivityPage(activityPage + 1)}
+                  className="px-3 py-1 bg-[#1a2235] rounded disabled:opacity-30"
+                >
+                  Next
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Footer */}
-          <p className="text-center text-xs text-gray-600 py-2">
-            © {new Date().getFullYear()} Fleet Management Dashboard
-          </p>
+          {/* ADD USER MODAL */}
+          {showAddModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-[#0f1729] border border-cyan-400/40 rounded-lg w-full max-w-md p-6">
+                <h2 className="text-xl font-semibold text-cyan-400 mb-4">
+                  Add New User
+                </h2>
+
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Full Name"
+                    value={newUser.name}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, name: e.target.value })
+                    }
+                    className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                  />
+
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={newUser.email}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, email: e.target.value })
+                    }
+                    className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                  />
+
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Password"
+                      value={newUser.password}
+                      onChange={(e) =>
+                        setNewUser({
+                          ...newUser,
+                          password: e.target.value,
+                        })
+                      }
+                      className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                    />
+
+                    <button
+                      className="absolute right-2 top-2 text-gray-400"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff /> : <Eye />}
+                    </button>
+                  </div>
+
+                  <input
+                    type="password"
+                    placeholder="Confirm password"
+                    value={newUser.confirmPassword}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        confirmPassword: e.target.value,
+                      })
+                    }
+                    className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                  />
+
+                  <select
+                    value={newUser.role}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        role: e.target.value as any,
+                      })
+                    }
+                    className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                  >
+                    {roles.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setShowAddModal(false)}
+                    className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded text-red-300 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddUser}
+                    className="px-4 py-2 bg-cyan-500 text-white rounded text-sm"
+                  >
+                    Add User
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* EDIT USER MODAL */}
+          {showEditModal && selectedUser && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-[#0f1729] border border-cyan-400/40 rounded-lg w-full max-w-md p-6">
+                <h2 className="text-xl font-semibold text-cyan-400 mb-4">
+                  Edit User
+                </h2>
+
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={selectedUser.name}
+                    onChange={(e) =>
+                      setSelectedUser({
+                        ...selectedUser,
+                        name: e.target.value,
+                      })
+                    }
+                    className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                  />
+
+                  <input
+                    type="email"
+                    value={selectedUser.email}
+                    onChange={(e) =>
+                      setSelectedUser({
+                        ...selectedUser,
+                        email: e.target.value,
+                      })
+                    }
+                    className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                  />
+
+                  <select
+                    value={selectedUser.role}
+                    onChange={(e) =>
+                      setSelectedUser({
+                        ...selectedUser,
+                        role: e.target.value as any,
+                      })
+                    }
+                    className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                  >
+                    {roles.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded text-red-300 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleEditUser}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded text-sm"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
-
-      {/* Add User Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg shadow-[0_0_20px_#00FFFF20] max-w-md w-full">
-            <div className="px-6 py-4 border-b border-cyan-400/20 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-cyan-400">Add New User</h2>
-              <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setNewUser({
-                    email: "",
-                    password: "",
-                    confirmPassword: "",
-                    name: "",
-                    role: "VIEWER",
-                  });
-                  setError("");
-                }}
-                className="text-gray-400 hover:text-gray-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g., John Doe"
-                  value={newUser.name}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, name: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-[#1a2235] border border-cyan-400/20 rounded text-gray-200 text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-400/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  placeholder="Enter valid email"
-                  value={newUser.email}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, email: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-[#1a2235] border border-cyan-400/20 rounded text-gray-200 text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-400/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">
-                  Role
-                </label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) =>
-                    setNewUser({
-                      ...newUser,
-                      role: e.target.value as any,
-                    })
-                  }
-                  className="w-full px-3 py-2 bg-[#1a2235] border border-cyan-400/20 rounded text-gray-200 text-sm focus:outline-none focus:border-cyan-400/50"
-                >
-                  {roles.map((role) => (
-                    <option key={role} value={role} className="bg-[#1a2235]">
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter strong password"
-                    value={newUser.password}
-                    onChange={(e) =>
-                      setNewUser({ ...newUser, password: e.target.value })
-                    }
-                    className="w-full px-3 py-2 pr-10 bg-[#1a2235] border border-cyan-400/20 rounded text-gray-200 text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-400/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-400"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">
-                  Confirm Password
-                </label>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Re-enter password"
-                  value={newUser.confirmPassword}
-                  onChange={(e) =>
-                    setNewUser({
-                      ...newUser,
-                      confirmPassword: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 bg-[#1a2235] border border-cyan-400/20 rounded text-gray-200 text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-400/50"
-                />
-                {newUser.password !== newUser.confirmPassword &&
-                  newUser.confirmPassword && (
-                    <p className="text-red-400 text-xs mt-1">
-                      Passwords do not match
-                    </p>
-                  )}
-              </div>
-            </div>
-
-            <div className="px-6 py-4 border-t border-cyan-400/20 flex gap-3">
-              <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setNewUser({
-                    email: "",
-                    password: "",
-                    confirmPassword: "",
-                    name: "",
-                    role: "VIEWER",
-                  });
-                  setError("");
-                }}
-                className="flex-1 px-4 py-2 bg-[#1a2235] hover:bg-[#222d42] text-gray-300 rounded text-sm font-medium transition-all border border-cyan-400/20"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddUser}
-                className="flex-1 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded text-sm font-medium transition-all shadow-[0_0_10px_#00FFFF40] hover:shadow-[0_0_15px_#00FFFF60]"
-              >
-                Save User
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit User Modal */}
-      {showEditModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg shadow-[0_0_20px_#00FFFF20] max-w-md w-full">
-            <div className="px-6 py-4 border-b border-cyan-400/20 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-cyan-400">Edit User</h2>
-              <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setSelectedUser(null);
-                  setError("");
-                }}
-                className="text-gray-400 hover:text-gray-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={selectedUser.name}
-                  onChange={(e) =>
-                    setSelectedUser({ ...selectedUser, name: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-[#1a2235] border border-cyan-400/20 rounded text-gray-200 text-sm focus:outline-none focus:border-cyan-400/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={selectedUser.email}
-                  onChange={(e) =>
-                    setSelectedUser({ ...selectedUser, email: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-[#1a2235] border border-cyan-400/20 rounded text-gray-200 text-sm focus:outline-none focus:border-cyan-400/50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2">
-                  Role
-                </label>
-                <select
-                  value={selectedUser.role}
-                  onChange={(e) =>
-                    setSelectedUser({
-                      ...selectedUser,
-                      role: e.target.value as any,
-                    })
-                  }
-                  className="w-full px-3 py-2 bg-[#1a2235] border border-cyan-400/20 rounded text-gray-200 text-sm focus:outline-none focus:border-cyan-400/50"
-                >
-                  {roles.map((role) => (
-                    <option key={role} value={role} className="bg-[#1a2235]">
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="px-6 py-4 border-t border-cyan-400/20 flex gap-3">
-              <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setSelectedUser(null);
-                  setError("");
-                }}
-                className="flex-1 px-4 py-2 bg-[#1a2235] hover:bg-[#222d42] text-gray-300 rounded text-sm font-medium transition-all border border-cyan-400/20"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEditUser}
-                className="flex-1 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded text-sm font-medium transition-all shadow-[0_0_10px_#00FFFF40] hover:shadow-[0_0_15px_#00FFFF60]"
-              >
-                Update User
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </ProtectedPage>
   );
 }
