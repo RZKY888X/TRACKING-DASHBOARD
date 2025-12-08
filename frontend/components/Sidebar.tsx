@@ -1,17 +1,9 @@
-// components/Sidebar.tsx
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Home,
-  Users,
-  Activity,
-  LogOut,
-  ChevronRight,
-  X,
-} from "lucide-react";
+import { Home, Users, Activity, LogOut, ChevronRight, X } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
 interface MenuItem {
@@ -22,13 +14,14 @@ interface MenuItem {
 
 export function Sidebar() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false); // ✅ modal profile
   const pathname = usePathname();
   const { data: session } = useSession();
 
   const menuItems: MenuItem[] = [
     { icon: Home, label: "Dashboard", href: "/" },
     { icon: Users, label: "User Management", href: "/users" },
-    { icon: Activity, label: "Assignment", href: "/assignment" }  ,
+    { icon: Activity, label: "Assignment", href: "/assignment" },
   ];
 
   const handleLogout = async () => {
@@ -37,7 +30,7 @@ export function Sidebar() {
 
   return (
     <>
-      {/* ✅ SIDEBAR (z-30, BUKAN z-50 LAGI) */}
+      {/* SIDEBAR */}
       <div
         className={`
           fixed top-0 left-0 h-screen z-30 w-56 bg-[#0d1421] border-r border-cyan-500/20
@@ -46,43 +39,45 @@ export function Sidebar() {
           lg:static lg:translate-x-0
         `}
       >
-        <div className="flex flex-col h-full">
-
+        <div className='flex flex-col h-full'>
           {/* Header */}
-          <div className="p-4 border-b border-cyan-500/20 flex items-center justify-between">
-            <h2 className="text-base font-bold text-cyan-400">Fleet Manager</h2>
+          <div className='p-4 border-b border-cyan-500/20 flex items-center justify-between'>
+            <h2 className='text-base font-bold text-cyan-400'>Fleet Manager</h2>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="text-gray-400 hover:text-cyan-400 transition-colors lg:hidden"
+              className='text-gray-400 hover:text-cyan-400 transition-colors lg:hidden'
             >
-              <X className="w-4 h-4" />
+              <X className='w-4 h-4' />
             </button>
           </div>
 
-          {/* User Info */}
+          {/* User Info (CLICKABLE) */}
           {session?.user && (
-            <div className="p-4 border-b border-cyan-500/20">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center text-white font-semibold text-sm">
+            <Link
+              href='/profile'
+              className='p-4 border-b border-cyan-500/20 cursor-pointer hover:bg-gray-800/40 transition-colors block'
+            >
+              <div className='flex items-center gap-3'>
+                <div className='w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center text-white font-semibold text-sm'>
                   {session.user.name?.charAt(0).toUpperCase() || "S"}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-200 truncate">
+                <div className='flex-1 min-w-0'>
+                  <p className='text-sm font-medium text-gray-200 truncate'>
                     {session.user.name || "Super Admin"}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className='text-xs text-gray-500 truncate'>
                     {session.user.email || "superadmin@example.com"}
                   </p>
-                  <p className="text-xs text-cyan-400 font-medium mt-0.5">
+                  <p className='text-xs text-cyan-400 font-medium mt-0.5'>
                     {session.user.role || "SUPERADMIN"}
                   </p>
                 </div>
               </div>
-            </div>
+            </Link>
           )}
 
           {/* Menu */}
-          <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+          <nav className='flex-1 overflow-y-auto p-3 space-y-0.5'>
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -98,56 +93,95 @@ export function Sidebar() {
                       : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50"
                   }`}
                 >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm font-medium flex-1">
+                  <Icon className='w-4 h-4 flex-shrink-0' />
+                  <span className='text-sm font-medium flex-1'>
                     {item.label}
                   </span>
-                  {isActive && <ChevronRight className="w-3 h-3" />}
+                  {isActive && <ChevronRight className='w-3 h-3' />}
                 </Link>
               );
             })}
           </nav>
 
           {/* Logout */}
-          <div className="p-3 border-t border-cyan-500/20">
+          <div className='p-3 border-t border-cyan-500/20'>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-400 hover:bg-red-500/10 transition-all hover:text-red-300"
+              className='w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-400 hover:bg-red-500/10 transition-all hover:text-red-300'
             >
-              <LogOut className="w-4 h-4" />
-              <span className="text-sm font-medium">Logout</span>
+              <LogOut className='w-4 h-4' />
+              <span className='text-sm font-medium'>Logout</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ✅ OVERLAY (z-20) */}
+      {/* OVERLAY */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 lg:hidden"
+          className='fixed inset-0 bg-black/60 backdrop-blur-sm z-20 lg:hidden'
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* ✅ TOGGLE BUTTON (z-40 PALING ATAS) */}
+      {/* TOGGLE BUTTON */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="fixed top-4 left-4 z-40 p-2 bg-[#0d1421] border border-cyan-500/30 rounded-lg hover:bg-cyan-500/10 transition-all text-gray-400 hover:text-cyan-400 lg:hidden"
+        className='fixed top-4 left-4 z-40 p-2 bg-[#0d1421] border border-cyan-500/30 rounded-lg hover:bg-cyan-500/10 transition-all text-gray-400 hover:text-cyan-400 lg:hidden'
       >
         <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+          className='w-5 h-5'
+          fill='none'
+          stroke='currentColor'
+          viewBox='0 0 24 24'
         >
           <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            strokeLinecap='round'
+            strokeLinejoin='round'
             strokeWidth={2}
-            d="M4 6h16M4 12h16M4 18h16"
+            d='M4 6h16M4 12h16M4 18h16'
           />
         </svg>
       </button>
+
+      {/* PROFILE MODAL */}
+      {profileOpen && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm'
+          onClick={() => setProfileOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className='bg-[#0d1421] w-80 rounded-xl border border-cyan-500/30 p-6 text-center relative'
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setProfileOpen(false)}
+              className='absolute top-3 right-3 text-gray-400 hover:text-cyan-400'
+            >
+              <X className='w-5 h-5' />
+            </button>
+
+            {/* Avatar */}
+            <div className='w-16 h-16 mx-auto rounded-full bg-cyan-500 flex items-center justify-center text-white font-semibold text-2xl'>
+              {session?.user?.name?.charAt(0).toUpperCase()}
+            </div>
+
+            {/* Name */}
+            <p className='text-gray-200 mt-3 text-lg font-semibold'>
+              {session?.user?.name}
+            </p>
+
+            {/* Email */}
+            <p className='text-gray-400 text-sm'>{session?.user?.email}</p>
+
+            {/* Role */}
+            <p className='text-cyan-400 text-sm mt-1 font-medium'>
+              {session?.user?.role || "SUPERADMIN"}
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

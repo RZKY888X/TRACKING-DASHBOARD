@@ -5,3 +5,16 @@ Content-Type: application/json
   "email": "admin@example.com",
   "password": "Pw123"
 }
+
+GET http://localhost:3001/api/auth/profile
+{
+  id: string,
+  email: string,
+  name: string,
+  role: "VIEWER" | "USER" | "ADMIN" | "SUPERADMIN",
+  lastLoginAt: string | null,
+  createdAt: string,
+  updatedAt: string,
+  profileImage: string | null,
+  jobRole: string | null
+}
