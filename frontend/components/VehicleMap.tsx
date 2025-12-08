@@ -254,7 +254,7 @@ export default function VehicleMap() {
   // ✅ FIX: Return loading state if not mounted
   if (!isMounted) {
     return (
-      <div className="w-full h-[400px] rounded-lg overflow-hidden shadow relative bg-slate-900 flex items-center justify-center">
+      <div className="w-full h-[600px] rounded-lg overflow-hidden shadow relative bg-slate-900 flex items-center justify-center">
         <p className="text-slate-400">Initializing map...</p>
       </div>
     );
