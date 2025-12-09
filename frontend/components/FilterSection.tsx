@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Filters } from "@/types";
 
 interface FilterSectionProps {
@@ -14,28 +15,17 @@ export default function FilterSection({
   filters,
   onFilterChange,
 }: FilterSectionProps) {
-  // ✅ STATIC DATA
-  const [drivers] = useState<string[]>([
-    "John Doe",
-    "Jane Smith",
-    "Bob Johnson",
-  ]);
-
-  const [routes] = useState<string[]>([
-    "Jakarta",
-    "Malang",
-    "Surabaya",
-    "Yogyakarta",
-    "Bandung",
-  ]);
-
-  const [departures] = useState<string[]>([
-    "Jakarta",
-    "Malang",
-    "Surabaya",
-    "Yogyakarta",
-    "Bandung",
-  ]);
+  const { data: session } = useSession();
+  
+  // ✅ DYNAMIC DATA FROM API
+  const [drivers, setDrivers] = useState<string[]>([]);
+  const [routes, setRoutes] = useState<string[]>([]);
+  const [departures, setDepartures] = useState<string[]>([]);
+  const [loading, setLoading] = useState({
+    drivers: true,
+    routes: true,
+    departures: true
+  });
 
   // ✅ DROPDOWN STATE
   const [openDriver, setOpenDriver] = useState(false);
@@ -43,7 +33,7 @@ export default function FilterSection({
   const [openDeparture, setOpenDeparture] = useState(false);
   const [openDate, setOpenDate] = useState(false);
 
-  // ✅ SEARCH STATE (BARU)
+  // ✅ SEARCH STATE
   const [searchDriver, setSearchDriver] = useState("");
   const [searchRoute, setSearchRoute] = useState("");
   const [searchDeparture, setSearchDeparture] = useState("");
@@ -52,9 +42,74 @@ export default function FilterSection({
   const [mode, setMode] = useState<"select" | "daily" | "weekly" | "monthly">(
     "select"
   );
-
   const [selectedMonth, setSelectedMonth] = useState("");
   const [weekSearch, setWeekSearch] = useState("");
+
+  // ✅ FETCH DRIVERS FROM API
+  useEffect(() => {
+    const fetchDrivers = async () => {
+      if (!session?.accessToken) return;
+      
+      try {
+        const res = await fetch(`${API_URL}/api/filters/drivers`, {
+          headers: { Authorization: `Bearer ${session.accessToken}` },
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setDrivers(data);
+        }
+      } catch (error) {
+        console.error("Error fetching drivers:", error);
+      } finally {
+        setLoading(prev => ({ ...prev, drivers: false }));
+      }
+    };
+
+    fetchDrivers();
+  }, [session]);
+
+  // ✅ FETCH ROUTES (ORIGINS) FROM API
+  useEffect(() => {
+    const fetchRoutes = async () => {
+      try {
+        // Mengambil dari origins/public untuk dropdown Origin Route
+        const res = await fetch(`${API_URL}/api/origins/public`);
+        
+        if (res.ok) {
+          const data = await res.json();
+          setRoutes(data.map((item: { destination: string }) => item.destination));
+        }
+      } catch (error) {
+        console.error("Error fetching routes:", error);
+      } finally {
+        setLoading(prev => ({ ...prev, routes: false }));
+      }
+    };
+
+    fetchRoutes();
+  }, []);
+
+  // ✅ FETCH DEPARTURES FROM API
+  useEffect(() => {
+    const fetchDepartures = async () => {
+      try {
+        // Mengambil dari departures/public untuk dropdown Departure
+        const res = await fetch(`${API_URL}/api/departures/public`);
+        
+        if (res.ok) {
+          const data = await res.json();
+          setDepartures(data.map((item: { destination: string }) => item.destination));
+        }
+      } catch (error) {
+        console.error("Error fetching departures:", error);
+      } finally {
+        setLoading(prev => ({ ...prev, departures: false }));
+      }
+    };
+
+    fetchDepartures();
+  }, []);
 
   const handleChange = <K extends keyof Filters>(
     key: K,
@@ -80,34 +135,46 @@ export default function FilterSection({
     driver.toLowerCase().includes(searchDriver.toLowerCase())
   );
 
-  const weeks = useMemo(() => {
-    const base = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"];
-    return base.filter((w) =>
-      w.toLowerCase().includes(weekSearch.toLowerCase())
-    );
-  }, [weekSearch]);
+  const weeks = [
+    "Week 1", "Week 2", "Week 3", "Week 4", "Week 5"
+  ].filter((week) =>
+    week.toLowerCase().includes(weekSearch.toLowerCase())
+  );
 
   const dateLabel =
     filters.dateType === "current"
       ? "Current"
       : filters.dateValue || "Select Date";
 
+  // Loading states
+  if (loading.drivers || loading.routes || loading.departures) {
+    return (
+      <div className="bg-[#0D1117] border border-[#1F2A37] rounded-lg p-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="h-4 bg-gray-700 rounded w-20 mb-2"></div>
+              <div className="h-12 bg-gray-800 rounded"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#0D1117] border border-[#1F2A37] rounded-lg p-6 relative z-10">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
 
-        {/* ================= DATE (tetap semua logika) ================= */}
+        {/* ================= DATE ================= */}
         <div className="relative z-50">
           <label className="block text-sm text-gray-400 mb-2">Date</label>
 
-          {/* tombol Date dengan ikon kalender putih */}
           <button
             onClick={() => setOpenDate(!openDate)}
-            className="w-full px-4 py-3 bg-[#161B22] rounded-lg text-left text-gray-300 flex items-center justify-between"
+            className="w-full px-4 py-3 bg-[#161B22] rounded-lg text-left text-gray-300 flex items-center justify-between hover:bg-[#1F2937] transition"
           >
             <span>{dateLabel}</span>
-
-            {/* SVG kalender — warna putih */}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="w-5 h-5 text-white"
@@ -115,7 +182,6 @@ export default function FilterSection({
               viewBox="0 0 24 24"
               stroke="currentColor"
               strokeWidth={2}
-              aria-hidden
             >
               <path
                 strokeLinecap="round"
@@ -126,8 +192,7 @@ export default function FilterSection({
           </button>
 
           {openDate && (
-            <div className="absolute mt-2 w-full bg-[#0D1117] border border-[#1F2A37] rounded-lg p-3 space-y-2 z-50">
-
+            <div className="absolute mt-2 w-full bg-[#0D1117] border border-[#1F2A37] rounded-lg p-3 space-y-2 z-50 shadow-xl">
               {mode === "select" &&
                 ["current", "daily", "weekly", "monthly"].map((type) => (
                   <button
@@ -142,13 +207,12 @@ export default function FilterSection({
                         handleChange("dateType", type as any);
                       }
                     }}
-                    className="w-full py-2 text-xs rounded bg-[#161B22] hover:bg-[#1F2937] text-gray-200"
+                    className="w-full py-2 text-xs rounded bg-[#161B22] hover:bg-[#1F2937] text-gray-200 transition"
                   >
                     {type.toUpperCase()}
                   </button>
                 ))}
 
-              {/* daily - tetap ada */}
               {mode === "daily" && (
                 <input
                   type="date"
@@ -157,12 +221,10 @@ export default function FilterSection({
                     setMode("select");
                     setOpenDate(false);
                   }}
-                  // Tailwind arbitrary to invert native calendar picker icon so it looks white in dark bg
-                  className="w-full px-3 py-2 bg-[#0D1117] text-gray-200 rounded [&::-webkit-calendar-picker-indicator]:invert"
+                  className="w-full px-3 py-2 bg-[#0D1117] text-gray-200 border border-[#1F2A37] rounded [&::-webkit-calendar-picker-indicator]:invert"
                 />
               )}
 
-              {/* monthly - tambahkan teks "Search Month" */}
               {mode === "monthly" && (
                 <>
                   <p className="text-xs text-gray-400">Search Month</p>
@@ -173,12 +235,11 @@ export default function FilterSection({
                       setMode("select");
                       setOpenDate(false);
                     }}
-                    className="w-full px-3 py-2 bg-[#0D1117] text-gray-200 rounded [&::-webkit-calendar-picker-indicator]:invert"
+                    className="w-full px-3 py-2 bg-[#0D1117] text-gray-200 border border-[#1F2A37] rounded [&::-webkit-calendar-picker-indicator]:invert"
                   />
                 </>
               )}
 
-              {/* weekly - tambahkan teks "Search Month" */}
               {mode === "weekly" && (
                 <>
                   <p className="text-xs text-gray-400">Search Month</p>
@@ -186,7 +247,7 @@ export default function FilterSection({
                     type="month"
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="w-full mb-2 px-3 py-2 bg-[#0D1117] text-gray-200 rounded [&::-webkit-calendar-picker-indicator]:invert"
+                    className="w-full mb-2 px-3 py-2 bg-[#0D1117] text-gray-200 border border-[#1F2A37] rounded [&::-webkit-calendar-picker-indicator]:invert"
                   />
 
                   <input
@@ -194,32 +255,31 @@ export default function FilterSection({
                     placeholder="Search week..."
                     value={weekSearch}
                     onChange={(e) => setWeekSearch(e.target.value)}
-                    className="w-full mb-2 px-3 py-2 bg-[#0D1117] text-gray-200 rounded"
+                    className="w-full mb-2 px-3 py-2 bg-[#0D1117] text-gray-200 border border-[#1F2A37] rounded"
                   />
 
-                  {weeks.map((week) => (
-                    <div
-                      key={week}
-                      onClick={() => {
-                        handleChange(
-                          "dateValue",
-                          `${selectedMonth} ${week}`
-                        );
-                        setMode("select");
-                        setOpenDate(false);
-                      }}
-                      className="px-3 py-2 text-xs cursor-pointer hover:bg-[#1F2937] rounded text-gray-200"
-                    >
-                      {week}
-                    </div>
-                  ))}
+                  <div className="max-h-40 overflow-y-auto">
+                    {weeks.map((week) => (
+                      <div
+                        key={week}
+                        onClick={() => {
+                          handleChange("dateValue", `${selectedMonth} ${week}`);
+                          setMode("select");
+                          setOpenDate(false);
+                        }}
+                        className="px-3 py-2 text-xs cursor-pointer hover:bg-[#1F2937] rounded text-gray-200"
+                      >
+                        {week}
+                      </div>
+                    ))}
+                  </div>
                 </>
               )}
             </div>
           )}
         </div>
 
-        {/* ================= DRIVER + SEARCH ================= */}
+        {/* ================= DRIVER ================= */}
         <div className="relative z-40">
           <label className="block text-sm text-gray-400 mb-2">Driver</label>
           <button
@@ -229,39 +289,46 @@ export default function FilterSection({
               setOpenDeparture(false);
               setOpenDate(false);
             }}
-            className="w-full px-4 py-3 bg-[#161B22] rounded-lg text-left text-gray-300"
+            className="w-full px-4 py-3 bg-[#161B22] rounded-lg text-left text-gray-300 hover:bg-[#1F2937] transition"
           >
             {filters.driver || "Select Driver"}
           </button>
 
           {openDriver && (
-            <div className="absolute mt-2 w-full bg-[#0D1117] border border-[#1F2A37] rounded-lg z-50">
+            <div className="absolute mt-2 w-full bg-[#0D1117] border border-[#1F2A37] rounded-lg z-50 shadow-xl">
               <input
                 type="text"
                 placeholder="Search driver..."
                 value={searchDriver}
                 onChange={(e) => setSearchDriver(e.target.value)}
-                className="w-full px-3 py-2 bg-[#161B22] text-gray-200 text-sm rounded-t"
+                className="w-full px-3 py-2 bg-[#161B22] text-gray-200 text-sm border-b border-[#1F2A37]"
               />
-
-              {filteredDrivers.map((driver) => (
-                <div
-                  key={driver}
-                  onClick={() => {
-                    handleChange("driver", driver);
-                    setOpenDriver(false);
-                    setSearchDriver("");
-                  }}
-                  className="px-3 py-2 cursor-pointer hover:bg-[#1F2937] text-gray-200"
-                >
-                  {driver}
-                </div>
-              ))}
+              <div className="max-h-60 overflow-y-auto">
+                {filteredDrivers.length > 0 ? (
+                  filteredDrivers.map((driver) => (
+                    <div
+                      key={driver}
+                      onClick={() => {
+                        handleChange("driver", driver);
+                        setOpenDriver(false);
+                        setSearchDriver("");
+                      }}
+                      className="px-3 py-2 cursor-pointer hover:bg-[#1F2937] text-gray-200 text-sm"
+                    >
+                      {driver}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-gray-400 text-sm text-center">
+                    No drivers found
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
 
-        {/* ================= ORIGIN + SEARCH ================= */}
+        {/* ================= ORIGIN ROUTE ================= */}
         <div className="relative z-30">
           <label className="block text-sm text-gray-400 mb-2">Origin Route</label>
           <button
@@ -271,39 +338,46 @@ export default function FilterSection({
               setOpenDeparture(false);
               setOpenDate(false);
             }}
-            className="w-full px-4 py-3 bg-[#161B22] rounded-lg text-left text-gray-300"
+            className="w-full px-4 py-3 bg-[#161B22] rounded-lg text-left text-gray-300 hover:bg-[#1F2937] transition"
           >
-            {filters.route || "Select Route"}
+            {filters.route || "Select Origin"}
           </button>
 
           {openRoute && (
-            <div className="absolute mt-2 w-full bg-[#0D1117] border border-[#1F2A37] rounded-lg z-50">
+            <div className="absolute mt-2 w-full bg-[#0D1117] border border-[#1F2A37] rounded-lg z-50 shadow-xl">
               <input
                 type="text"
-                placeholder="Search route..."
+                placeholder="Search origin..."
                 value={searchRoute}
                 onChange={(e) => setSearchRoute(e.target.value)}
-                className="w-full px-3 py-2 bg-[#161B22] text-gray-200 text-sm rounded-t"
+                className="w-full px-3 py-2 bg-[#161B22] text-gray-200 text-sm border-b border-[#1F2A37]"
               />
-
-              {filteredRoutes.map((route) => (
-                <div
-                  key={route}
-                  onClick={() => {
-                    handleChange("route", route);
-                    setOpenRoute(false);
-                    setSearchRoute("");
-                  }}
-                  className="px-3 py-2 cursor-pointer hover:bg-[#1F2937] text-gray-200"
-                >
-                  {route}
-                </div>
-              ))}
+              <div className="max-h-60 overflow-y-auto">
+                {filteredRoutes.length > 0 ? (
+                  filteredRoutes.map((route) => (
+                    <div
+                      key={route}
+                      onClick={() => {
+                        handleChange("route", route);
+                        setOpenRoute(false);
+                        setSearchRoute("");
+                      }}
+                      className="px-3 py-2 cursor-pointer hover:bg-[#1F2937] text-gray-200 text-sm"
+                    >
+                      {route}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-gray-400 text-sm text-center">
+                    No origins found
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
 
-        {/* ================= DEPARTURE + SEARCH ================= */}
+        {/* ================= DEPARTURE ================= */}
         <div className="relative z-20">
           <label className="block text-sm text-gray-400 mb-2">Departure</label>
           <button
@@ -313,34 +387,41 @@ export default function FilterSection({
               setOpenRoute(false);
               setOpenDate(false);
             }}
-            className="w-full px-4 py-3 bg-[#161B22] rounded-lg text-left text-gray-300"
+            className="w-full px-4 py-3 bg-[#161B22] rounded-lg text-left text-gray-300 hover:bg-[#1F2937] transition"
           >
             {filters.departure || "Select Departure"}
           </button>
 
           {openDeparture && (
-            <div className="absolute mt-2 w-full bg-[#0D1117] border border-[#1F2A37] rounded-lg z-50">
+            <div className="absolute mt-2 w-full bg-[#0D1117] border border-[#1F2A37] rounded-lg z-50 shadow-xl">
               <input
                 type="text"
                 placeholder="Search departure..."
                 value={searchDeparture}
                 onChange={(e) => setSearchDeparture(e.target.value)}
-                className="w-full px-3 py-2 bg-[#161B22] text-gray-200 text-sm rounded-t"
+                className="w-full px-3 py-2 bg-[#161B22] text-gray-200 text-sm border-b border-[#1F2A37]"
               />
-
-              {filteredDepartures.map((departure) => (
-                <div
-                  key={departure}
-                  onClick={() => {
-                    handleChange("departure", departure);
-                    setOpenDeparture(false);
-                    setSearchDeparture("");
-                  }}
-                  className="px-3 py-2 cursor-pointer hover:bg-[#1F2937] text-gray-200"
-                >
-                  {departure}
-                </div>
-              ))}
+              <div className="max-h-60 overflow-y-auto">
+                {filteredDepartures.length > 0 ? (
+                  filteredDepartures.map((departure) => (
+                    <div
+                      key={departure}
+                      onClick={() => {
+                        handleChange("departure", departure);
+                        setOpenDeparture(false);
+                        setSearchDeparture("");
+                      }}
+                      className="px-3 py-2 cursor-pointer hover:bg-[#1F2937] text-gray-200 text-sm"
+                    >
+                      {departure}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-gray-400 text-sm text-center">
+                    No departures found
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

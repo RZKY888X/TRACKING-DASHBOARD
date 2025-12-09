@@ -1291,6 +1291,237 @@ app.get("/api/filters/all", authMiddleware, async (req, res) => {
   }
 });
 
+// backend/index.js - Tambahkan API berikut:
+
+// GET: Get all unique drivers (dari tabel Vehicle)
+app.get("/api/filters/drivers", authMiddleware, async (req, res) => {
+  try {
+    const vehicles = await prisma.vehicle.findMany({
+      select: { driver: true },
+      where: { driver: { not: null } },
+      distinct: ['driver']
+    });
+
+    const drivers = vehicles
+      .map(v => v.driver)
+      .filter(driver => driver && driver.trim() !== "")
+      .sort();
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "FILTER",
+      description: "Fetched drivers for filter",
+      req,
+    });
+
+    res.json(drivers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET: Get all unique routes (dari tabel Vehicle.route dan Assignment)
+app.get("/api/filters/routes", authMiddleware, async (req, res) => {
+  try {
+    // Ambil dari vehicle.route
+    const vehicles = await prisma.vehicle.findMany({
+      select: { route: true },
+      where: { route: { not: null } }
+    });
+
+    // Ambil dari assignment (origin + departure)
+    const assignments = await prisma.assignment.findMany({
+      include: {
+        fromOrigin: { select: { destination: true } },
+        toDeparture: { select: { destination: true } }
+      }
+    });
+
+    const routeSet = new Set();
+    
+    // Tambahkan dari vehicle.route
+    vehicles.forEach(vehicle => {
+      if (vehicle.route && vehicle.route.includes(" - ")) {
+        const [from, to] = vehicle.route.split(" - ");
+        routeSet.add(from.trim());
+        routeSet.add(to.trim());
+      } else if (vehicle.route) {
+        routeSet.add(vehicle.route.trim());
+      }
+    });
+
+    // Tambahkan dari assignment
+    assignments.forEach(assignment => {
+      if (assignment.fromOrigin?.destination) {
+        routeSet.add(assignment.fromOrigin.destination);
+      }
+      if (assignment.toDeparture?.destination) {
+        routeSet.add(assignment.toDeparture.destination);
+      }
+    });
+
+    const routes = Array.from(routeSet).sort();
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "FILTER",
+      description: "Fetched routes for filter",
+      req,
+    });
+
+    res.json(routes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET: Vehicle data with filters
+app.get("/api/vehicles/filtered", authMiddleware, async (req, res) => {
+  try {
+    const { driver, route, departure, dateType, dateValue } = req.query;
+
+    // Base query
+    const where = {};
+
+    // Filter by driver
+    if (driver) {
+      where.driver = { contains: driver, mode: "insensitive" };
+    }
+
+    // Filter by route (from vehicle.route or assignment)
+    if (route) {
+      where.OR = [
+        { route: { contains: route, mode: "insensitive" } },
+        {
+          assignments: {
+            some: {
+              OR: [
+                { fromOrigin: { destination: { contains: route, mode: "insensitive" } } },
+                { toDeparture: { destination: { contains: route, mode: "insensitive" } } }
+              ]
+            }
+          }
+        }
+      ];
+    }
+
+    // Filter by departure (specific to departure table)
+    if (departure) {
+      where.assignments = {
+        some: {
+          toDeparture: { destination: { contains: departure, mode: "insensitive" } }
+        }
+      };
+    }
+
+    // Date filter logic
+    if (dateType && dateValue && dateValue !== "Current") {
+      const today = new Date();
+      let startDate, endDate;
+
+      if (dateType === "daily") {
+        startDate = new Date(dateValue);
+        endDate = new Date(dateValue);
+        endDate.setDate(endDate.getDate() + 1);
+      } else if (dateType === "weekly") {
+        // Parse week string like "2024-01 Week 2"
+        const match = dateValue.match(/(\d{4}-\d{2}).*Week\s*(\d+)/i);
+        if (match) {
+          const [_, monthStr, weekNum] = match;
+          const yearMonth = monthStr.split('-');
+          const year = parseInt(yearMonth[0]);
+          const month = parseInt(yearMonth[1]) - 1;
+          const week = parseInt(weekNum);
+          
+          // Simple week calculation (approximate)
+          const firstDay = new Date(year, month, 1);
+          const dayOffset = (week - 1) * 7;
+          startDate = new Date(firstDay);
+          startDate.setDate(firstDay.getDate() + dayOffset);
+          endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + 7);
+        }
+      } else if (dateType === "monthly") {
+        const yearMonth = dateValue.split('-');
+        const year = parseInt(yearMonth[0]);
+        const month = parseInt(yearMonth[1]) - 1;
+        startDate = new Date(year, month, 1);
+        endDate = new Date(year, month + 1, 0);
+      }
+
+      if (startDate && endDate) {
+        where.createdAt = {
+          gte: startDate,
+          lte: endDate
+        };
+      }
+    }
+
+    const vehicles = await prisma.vehicle.findMany({
+      where,
+      include: {
+        positions: { 
+          orderBy: { timestamp: "desc" }, 
+          take: 1 
+        },
+        assignments: {
+          include: {
+            fromOrigin: true,
+            toDeparture: true
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1
+        }
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+
+    // Format vehicles dengan route dari assignment
+    const formattedVehicles = vehicles.map(vehicle => {
+      let displayRoute = vehicle.route;
+      
+      // Jika ada assignment, gabungkan origin dan departure
+      if (vehicle.assignments && vehicle.assignments.length > 0) {
+        const assignment = vehicle.assignments[0];
+        const from = assignment.fromOrigin?.destination;
+        const to = assignment.toDeparture?.destination;
+        
+        if (from && to) {
+          displayRoute = `${from} - ${to}`;
+        } else if (from) {
+          displayRoute = from;
+        } else if (to) {
+          displayRoute = to;
+        }
+      }
+
+      return {
+        ...vehicle,
+        route: displayRoute,
+        latitude: vehicle.positions[0]?.latitude || null,
+        longitude: vehicle.positions[0]?.longitude || null,
+        speed: vehicle.positions[0]?.speed || null,
+        timestamp: vehicle.positions[0]?.timestamp || null
+      };
+    });
+
+    await writeActivityLog({
+      userId: req.user?.id,
+      action: "READ",
+      entity: "VEHICLE",
+      description: `Filtered vehicles with params: ${JSON.stringify(req.query)}`,
+      req,
+    });
+
+    res.json(formattedVehicles);
+  } catch (err) {
+    console.error("Filter error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ======================================================
    START SERVER
 ====================================================== */
