@@ -1,4 +1,4 @@
-// app/users/page.tsx - PART 1
+// app/users/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -20,6 +20,7 @@ interface User {
   email: string;
   name: string;
   role: "VIEWER" | "USER" | "ADMIN" | "SUPERADMIN";
+  jobRole?: string | null;
   lastLoginAt: string | null;
   lastLoginIp: string | null;
   createdAt: string;
@@ -31,6 +32,7 @@ interface NewUser {
   confirmPassword: string;
   name: string;
   role: "VIEWER" | "USER" | "ADMIN" | "SUPERADMIN";
+  jobRole?: string;
 }
 
 interface ActivityLog {
@@ -76,6 +78,7 @@ export default function UsersPage() {
     confirmPassword: "",
     name: "",
     role: "VIEWER",
+    jobRole: "",
   });
 
   const roles = ["VIEWER", "USER", "ADMIN", "SUPERADMIN"];
@@ -86,12 +89,23 @@ export default function UsersPage() {
     SUPERADMIN: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
   };
 
+  // static job roles (kamu bisa ganti jadi fetch dari backend kalau perlu)
+  const jobRoles = [
+    "Driver",
+    "Dispatcher",
+    "Mechanic",
+    "Office Admin",
+    "Supervisor",
+    "Other",
+  ];
+
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   // Fetch users
   useEffect(() => {
     fetchUsers();
     fetchActivities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.accessToken]);
 
   // Filter users
@@ -137,6 +151,7 @@ export default function UsersPage() {
           email: "budi.s@example.com",
           name: "Budi Santoso",
           role: "ADMIN",
+          jobRole: "Supervisor",
           lastLoginAt: "2025-01-15T08:30:00Z",
           lastLoginIp: "192.168.1.100",
           createdAt: "2025-01-01T00:00:00Z",
@@ -146,6 +161,7 @@ export default function UsersPage() {
           email: "citra.l@example.com",
           name: "Citra Lestari",
           role: "USER",
+          jobRole: "Dispatcher",
           lastLoginAt: "2025-01-14T15:20:00Z",
           lastLoginIp: "192.168.1.101",
           createdAt: "2025-01-02T00:00:00Z",
@@ -155,6 +171,7 @@ export default function UsersPage() {
           email: "eko.p@example.com",
           name: "Eko Prasetyo",
           role: "VIEWER",
+          jobRole: "Other",
           lastLoginAt: null,
           lastLoginIp: null,
           createdAt: "2025-01-03T00:00:00Z",
@@ -236,6 +253,7 @@ export default function UsersPage() {
     if (session?.accessToken) {
       fetchActivities();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activityPage, session?.accessToken]);
 
   const handleAddUser = async () => {
@@ -269,10 +287,15 @@ export default function UsersPage() {
           password: newUser.password,
           name: newUser.name,
           role: newUser.role,
+          jobRole: newUser.jobRole || null,
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to create user");
+      if (!res.ok) {
+        const errText = await res.text().catch(() => null);
+        console.error("Create user failed:", res.status, errText);
+        throw new Error("Failed to create user");
+      }
 
       setSuccess("User created successfully!");
       setTimeout(() => {
@@ -283,11 +306,13 @@ export default function UsersPage() {
           confirmPassword: "",
           name: "",
           role: "VIEWER",
+          jobRole: "",
         });
         fetchUsers();
         fetchActivities();
-      }, 1500);
+      }, 1000);
     } catch (err) {
+      console.error(err);
       setError("Failed to create user");
     }
   };
@@ -306,10 +331,15 @@ export default function UsersPage() {
           name: selectedUser.name,
           email: selectedUser.email,
           role: selectedUser.role,
+          jobRole: (selectedUser as any).jobRole ?? null,
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to update user");
+      if (!res.ok) {
+        const errText = await res.text().catch(() => null);
+        console.error("Update user failed:", res.status, errText);
+        throw new Error("Failed to update user");
+      }
 
       setSuccess("User updated successfully!");
       setTimeout(() => {
@@ -317,8 +347,9 @@ export default function UsersPage() {
         setSelectedUser(null);
         fetchUsers();
         fetchActivities();
-      }, 1500);
+      }, 1000);
     } catch (err) {
+      console.error(err);
       setError("Failed to update user");
     }
   };
@@ -340,6 +371,7 @@ export default function UsersPage() {
       fetchUsers();
       fetchActivities();
     } catch (err) {
+      console.error(err);
       setError("Failed to delete user");
     }
   };
@@ -388,9 +420,6 @@ export default function UsersPage() {
     return "•";
   };
 
-  // ===== LANJUTAN DI PART 2 =====
-  // ===== LANJUTAN DARI PART 1 =====
-  
   return (
     <ProtectedPage requiredRole="ADMIN">
       <main className="min-h-screen bg-[#0a0e1a] text-gray-200 p-4">
@@ -532,6 +561,11 @@ export default function UsersPage() {
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="font-medium text-gray-200 text-sm">
                               {user.name}
+                              {user.jobRole && (
+                                <div className="text-xs text-gray-500">
+                                  {user.jobRole}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
@@ -546,7 +580,7 @@ export default function UsersPage() {
                               }`}
                             >
                               {getRoleIcon(user.role)}
-                                                            {user.role}
+                              {user.role}
                             </div>
                           </td>
 
@@ -573,6 +607,7 @@ export default function UsersPage() {
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => {
+                                  // make sure selectedUser carries jobRole too
                                   setSelectedUser(user);
                                   setShowEditModal(true);
                                 }}
@@ -750,6 +785,27 @@ export default function UsersPage() {
                       </option>
                     ))}
                   </select>
+
+                  {/* NEW: jobRole dropdown with description */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">
+                      Job Role — pilih peran pekerjaan pengguna (opsional)
+                    </label>
+                    <select
+                      value={newUser.jobRole}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, jobRole: e.target.value })
+                      }
+                      className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                    >
+                      <option value="">-- Select job role (optional) --</option>
+                      {jobRoles.map((jr) => (
+                        <option key={jr} value={jr}>
+                          {jr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 mt-6">
@@ -819,11 +875,38 @@ export default function UsersPage() {
                       </option>
                     ))}
                   </select>
+
+                  {/* NEW: jobRole dropdown with description */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">
+                      Job Role — pilih peran pekerjaan pengguna (opsional)
+                    </label>
+                    <select
+                      value={(selectedUser as any).jobRole || ""}
+                      onChange={(e) =>
+                        setSelectedUser({
+                          ...(selectedUser as User),
+                          jobRole: e.target.value,
+                        } as User)
+                      }
+                      className="w-full p-2 bg-[#1a2235] rounded border border-cyan-400/20 text-sm"
+                    >
+                      <option value="">-- Select job role (optional) --</option>
+                      {jobRoles.map((jr) => (
+                        <option key={jr} value={jr}>
+                          {jr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 mt-6">
                   <button
-                    onClick={() => setShowEditModal(false)}
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setSelectedUser(null);
+                    }}
                     className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded text-red-300 text-sm"
                   >
                     Cancel
