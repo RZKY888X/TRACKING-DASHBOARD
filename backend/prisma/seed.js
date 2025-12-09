@@ -1,5 +1,3 @@
-// prisma/seed.js
-
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 
@@ -17,6 +15,8 @@ async function main() {
   await prisma.vehicle.deleteMany();
   await prisma.driver.deleteMany();
   await prisma.route.deleteMany();
+  await prisma.origin.deleteMany();
+  await prisma.departure.deleteMany();
   await prisma.user.deleteMany();
   console.log("🧹 Database cleared.");
 
@@ -41,95 +41,39 @@ async function main() {
   console.log("👥 Users inserted:", users.length);
 
   // ============================================
-  // 3️⃣ DRIVERS & ROUTES
+  // 3️⃣ DRIVERS & VEHICLES
   // ============================================
   const driverNames = ["John Doe", "Jane Smith", "Bob Johnson"];
-  const drivers = [];
   for (const name of driverNames) {
-    const d = await prisma.driver.create({ data: { name } });
-    drivers.push(d);
+    await prisma.driver.create({ data: { name } });
   }
 
-  const routeData = [
-    { name: "Route 1", origin: "Jakarta", departure: "Bandung" },
-    { name: "Route 2", origin: "Surabaya", departure: "Malang" },
-    { name: "Route 3", origin: "Yogyakarta", departure: "Semarang" },
-  ];
-
-  const routes = [];
-  for (const r of routeData) {
-    const route = await prisma.route.create({ data: r });
-    routes.push(route);
-  }
-
-  // ============================================
-  // 4️⃣ VEHICLES
-  // ============================================
   const vehiclesData = [
-    { name: "Truck A", driver: "John Doe", route: "Route 1" },
-    { name: "Truck B", driver: "Jane Smith", route: "Route 2" },
-    { name: "Van C",   driver: "Bob Johnson", route: "Route 3" },
-    { name: "Bus D",   driver: "John Doe", route: "Route 1" },
-    { name: "Car E",   driver: "Jane Smith", route: "Route 2" },
+    { name: "B 3420 ADZ", driver: "John Doe", route: null },
+    { name: "B 4429 JJA", driver: "Jane Smith", route: null },
+    { name: "B 4278 AKB", driver: "Bob Johnson", route: null },
   ];
 
-  const insertedVehicles = [];
   for (const v of vehiclesData) {
-    const vehicle = await prisma.vehicle.create({ data: v });
-    insertedVehicles.push(vehicle);
+    await prisma.vehicle.create({ data: v });
   }
-  console.log("🚚 Vehicles, Drivers & Routes inserted.");
+
+  console.log("🚚 Vehicles & Drivers inserted.");
 
   // ============================================
-  // 5️⃣ MOCK TELEMETRY DATA
+  // 4️⃣ ORIGIN & DEPARTURE SEED
   // ============================================
-  const positions = [];
-  const statuses = [];
-
-  insertedVehicles.forEach((vehicle) => {
-    positions.push({
-      vehicleId: vehicle.id,
-      latitude: -6.200 + Math.random() * 0.2,
-      longitude: 106.800 + Math.random() * 0.2,
-      speed: Math.floor(Math.random() * 120),
-    });
-
-    statuses.push({
-      vehicleId: vehicle.id,
-      isOnline: true,
-      battery: Math.floor(Math.random() * 100),
-    });
-  });
-
-  await prisma.position.createMany({ data: positions });
-  await prisma.status.createMany({ data: statuses });
-  console.log(`📍 Telemetry mock added for ${insertedVehicles.length} vehicles.`);
-
-  // ============================================
-  // 6️⃣ MOCK ASSIGNMENT DATA
-  // ============================================
-  const assignmentsData = [
-    {
-      userId: users[1].id, // Regular User
-      vehicleId: insertedVehicles[0].id,
-      fromId: routes[0].id,
-      toId: routes[1].id,
-      jobRole: "Driver",
-    },
-    {
-      userId: users[2].id, // Admin User
-      vehicleId: insertedVehicles[1].id,
-      fromId: routes[1].id,
-      toId: routes[2].id,
-      jobRole: "Supervisor",
-    },
+  const cities = [
+    "Jakarta", "Bandung", "Surabaya", "Malang", "Yogyakarta",
+    "Semarang", "Medan", "Palembang", "Balikpapan", "Denpasar"
   ];
 
-  for (const a of assignmentsData) {
-    await prisma.assignment.create({ data: a });
+  for (const city of cities) {
+    await prisma.origin.create({ data: { destination: city } });
+    await prisma.departure.create({ data: { destination: city } });
   }
 
-  console.log("📌 Assignments inserted:", assignmentsData.length);
+  console.log("🛣️ Origins & Departures inserted.");
 
   console.log("🎉 Seed completed successfully!");
 }

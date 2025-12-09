@@ -22,6 +22,7 @@ export function Sidebar() {
     { icon: Home, label: "Dashboard", href: "/" },
     { icon: Users, label: "User Management", href: "/users" },
     { icon: Activity, label: "Assignment", href: "/assignment" },
+    { icon: Activity, label: "System Management", href: "/system-management" }
   ];
 
   const handleLogout = async () => {

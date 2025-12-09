@@ -6,114 +6,143 @@ interface User {
   id: string;
   name: string;
   email: string;
+  jobRole?: string;
+}
+
+interface Origin {
+  id: number;
+  destination: string;
+}
+
+interface Departure {
+  id: number;
+  destination: string;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function AssignmentPage() {
   const [vehicle, setVehicle] = useState("");
-  const [routeFrom, setRouteFrom] = useState("");
-  const [routeTo, setRouteTo] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [jobRole, setJobRole] = useState("");
 
+  const [origin, setOrigin] = useState("");
+  const [departure, setDeparture] = useState("");
+
   const [users, setUsers] = useState<User[]>([]);
-  const [routes, setRoutes] = useState<string[]>([]);
+  const [origins, setOrigins] = useState<Origin[]>([]);
+  const [departures, setDepartures] = useState<Departure[]>([]);
+
   const [loadingUsers, setLoadingUsers] = useState(true);
-  const [loadingRoutes, setLoadingRoutes] = useState(true);
+  const [loadingOrigins, setLoadingOrigins] = useState(true);
+  const [loadingDepartures, setLoadingDepartures] = useState(true);
+
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   /* =============================
-       FETCH USERS & ROUTES
+        FETCH USERS & ROUTES
   ============================== */
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) {
+      setFetchError("❌ Token tidak ditemukan, silakan login kembali");
+      setLoadingUsers(false);
+      setLoadingOrigins(false);
+      setLoadingDepartures(false);
+      return;
+    }
 
-    const fetchUsers = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/auth/users`, {
+        // FETCH USERS
+        const usersRes = await fetch(`${API_URL}/api/assignment/users`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (!usersRes.ok) throw new Error(`Users fetch error: ${usersRes.status}`);
+        const usersData: User[] = await usersRes.json();
+        setUsers(usersData);
 
-        if (!res.ok) throw new Error("Failed to fetch users");
+        // FETCH ORIGINS
+        const originsRes = await fetch(`${API_URL}/api/origins/public`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!originsRes.ok) throw new Error(`Origins fetch error: ${originsRes.status}`);
+        const originsData: Origin[] = await originsRes.json();
+        setOrigins(originsData);
 
-        const data: User[] = await res.json();
-        setUsers(data);
-      } catch (err) {
-        console.error("Error fetching users:", err);
+        // FETCH DEPARTURES
+        const departuresRes = await fetch(`${API_URL}/api/departures/public`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!departuresRes.ok) throw new Error(`Departures fetch error: ${departuresRes.status}`);
+        const departuresData: Departure[] = await departuresRes.json();
+        setDepartures(departuresData);
+      } catch (err: any) {
+        console.error(err);
+        setFetchError(err.message || "❌ Gagal mengambil data");
       } finally {
         setLoadingUsers(false);
+        setLoadingOrigins(false);
+        setLoadingDepartures(false);
       }
     };
 
-    const fetchRoutes = async () => {
-      try {
-        const res = await fetch("http://localhost:3001/api/routes", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error("Failed to fetch routes");
-
-        const data: string[] = await res.json();
-        setRoutes(data);
-      } catch (err) {
-        console.error("Error fetching routes:", err);
-      } finally {
-        setLoadingRoutes(false);
-      }
-    };
-
-    fetchUsers();
-    fetchRoutes();
+    fetchData();
   }, []);
 
   /* =============================
-         RESET FORM
+        RESET FORM
   ============================== */
   const resetForm = () => {
     setVehicle("");
-    setRouteFrom("");
-    setRouteTo("");
     setFullName("");
     setEmail("");
     setJobRole("");
+    setOrigin("");
+    setDeparture("");
   };
 
   /* =============================
-         SAVE ASSIGNMENT
+        SAVE ASSIGNMENT
   ============================== */
   const handleSave = async () => {
-    if (!fullName || !email || !jobRole || !vehicle || !routeFrom || !routeTo) {
-      alert("❌ Semua kolom harus diisi");
-      return;
-    }
-
     const token = localStorage.getItem("token");
-
-    const res = await fetch(`${API_URL}/api/assignments`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        fullName,
-        email,
-        jobRole,
-        vehicle,
-        routeFrom,
-        routeTo,
-      }),
-    });
-
-    if (!res.ok) {
-      alert("❌ Gagal menyimpan assignment");
+    if (!token) {
+      alert("❌ Token tidak ditemukan, silakan login ulang");
       return;
     }
 
-    alert("✅ Assignment berhasil disimpan");
-    resetForm();
+    try {
+      const res = await fetch(`${API_URL}/api/assignments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fullName: fullName || null,
+          email: email || null,
+          jobRole: jobRole || null,
+          vehicle: vehicle || null,
+          routeFrom: origin || null,
+          routeTo: departure || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "❌ Gagal menyimpan assignment");
+        return;
+      }
+
+      alert("✅ Assignment berhasil disimpan");
+      resetForm();
+    } catch (err: any) {
+      console.error(err);
+      alert("❌ Terjadi kesalahan saat menyimpan assignment");
+    }
   };
 
   return (
@@ -124,6 +153,7 @@ export default function AssignmentPage() {
         <p className="text-gray-400 mt-1">
           Manage vehicle route assignments and driver responsibilities.
         </p>
+        {fetchError && <p className="text-red-500 mt-2">{fetchError}</p>}
       </div>
 
       {/* Form */}
@@ -136,17 +166,18 @@ export default function AssignmentPage() {
               className="w-full px-4 py-2 bg-[#0D1117] border border-cyan-600/40 rounded-md text-gray-200"
               value={fullName}
               onChange={(e) => {
-                const userName = e.target.value;
-                setFullName(userName);
+                const selectedName = e.target.value;
+                setFullName(selectedName);
 
-                const selectedUser = users.find((u) => u.name === userName);
-                if (selectedUser) setEmail(selectedUser.email);
+                const selectedUser = users.find((u) => u.name === selectedName);
+                if (selectedUser) {
+                  setEmail(selectedUser.email);
+                  setJobRole(selectedUser.jobRole || "");
+                }
               }}
               disabled={loadingUsers}
             >
-              <option value="">
-                {loadingUsers ? "Loading..." : "Pilih Nama"}
-              </option>
+              <option value="">{loadingUsers ? "Loading..." : "Pilih Nama"}</option>
               {users.map((user) => (
                 <option key={user.id} value={user.name}>
                   {user.name}
@@ -169,16 +200,12 @@ export default function AssignmentPage() {
           {/* Job Role */}
           <div>
             <label className="block mb-1 text-sm text-gray-300">Job Role</label>
-            <select
+            <input
+              type="text"
               className="w-full px-4 py-2 bg-[#0D1117] border border-cyan-600/40 rounded-md text-gray-200"
               value={jobRole}
-              onChange={(e) => setJobRole(e.target.value)}
-            >
-              <option value="">Pilih Role</option>
-              <option value="Driver">Driver</option>
-              <option value="Helper">Helper</option>
-              <option value="Supervisor">Supervisor</option>
-            </select>
+              readOnly
+            />
           </div>
 
           {/* Vehicle */}
@@ -192,41 +219,37 @@ export default function AssignmentPage() {
             />
           </div>
 
-          {/* Route From */}
+          {/* Origin */}
           <div>
-            <label className="block mb-1 text-sm text-gray-300">Route From</label>
+            <label className="block mb-1 text-sm text-gray-300">Route From (Origin)</label>
             <select
               className="w-full px-4 py-2 bg-[#0D1117] border border-cyan-600/40 rounded-md text-gray-200"
-              value={routeFrom}
-              onChange={(e) => setRouteFrom(e.target.value)}
-              disabled={loadingRoutes}
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+              disabled={loadingOrigins}
             >
-              <option value="">
-                {loadingRoutes ? "Loading..." : "Pilih Origin"}
-              </option>
-              {routes.map((r, i) => (
-                <option key={i} value={r}>
-                  {r}
+              <option value="">{loadingOrigins ? "Loading..." : "Pilih Origin"}</option>
+              {origins.map((o) => (
+                <option key={o.id} value={o.destination}>
+                  {o.destination}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Route To */}
+          {/* Departure */}
           <div>
-            <label className="block mb-1 text-sm text-gray-300">Route To</label>
+            <label className="block mb-1 text-sm text-gray-300">Route To (Departure)</label>
             <select
               className="w-full px-4 py-2 bg-[#0D1117] border border-cyan-600/40 rounded-md text-gray-200"
-              value={routeTo}
-              onChange={(e) => setRouteTo(e.target.value)}
-              disabled={loadingRoutes}
+              value={departure}
+              onChange={(e) => setDeparture(e.target.value)}
+              disabled={loadingDepartures}
             >
-              <option value="">
-                {loadingRoutes ? "Loading..." : "Pilih Destination"}
-              </option>
-              {routes.map((r, i) => (
-                <option key={i} value={r}>
-                  {r}
+              <option value="">{loadingDepartures ? "Loading..." : "Pilih Destination"}</option>
+              {departures.map((d) => (
+                <option key={d.id} value={d.destination}>
+                  {d.destination}
                 </option>
               ))}
             </select>
