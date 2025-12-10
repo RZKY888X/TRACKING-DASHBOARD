@@ -36,12 +36,14 @@ model Route {
 model Origin {
   id              Int          @id @default(autoincrement())
   destination     String       @unique
+  coords          Json?        // NEW: posisi titik pada map
   fromAssignments Assignment[] @relation("FromOrigin")
 }
 
 model Departure {
   id            Int          @id @default(autoincrement())
   destination   String       @unique
+  coords        Json?        // NEW: posisi titik pada map
   toAssignments Assignment[] @relation("ToDeparture")
 }
 
@@ -98,10 +100,9 @@ model ActivityLog {
   @@index([action])
 }
 
-/// *
-///  * ===========================================
-///  * ASSIGNMENT SYSTEM (NEW)
-///  * ===========================================
+/// ===========================================
+/// ASSIGNMENT SYSTEM (NEW)
+/// ===========================================
 model Assignment {
   id            Int        @id @default(autoincrement())
   userId        String
@@ -133,4 +134,21 @@ enum Role {
   USER
   ADMIN
   SUPERADMIN
+}
+
+/// ===========================================
+/// 1. NEW TABLE — Plat
+/// ===========================================
+model Plat {
+  id             Int    @id @default(autoincrement())
+  platKendaraan  String @unique
+  jenisKendaraan String
+}
+
+/// ===========================================
+/// 2. NEW TABLE — JobRole
+/// ===========================================
+model JobRole {
+  id  Int    @id @default(autoincrement())
+  job String @unique
 }
