@@ -24,21 +24,31 @@ export default function DataTable({ data }: DataTableProps) {
     currentPage * itemsPerPage
   );
 
-  // ===========================
-  // ✅ DUMMY GENERATOR
-  // ===========================
-  const getDummyStartTime = (index: number) =>
-    new Date(Date.now() - (index + 2) * 60 * 60 * 1000).toLocaleString();
+  // =======================
+  // FORMAT TIME FIX (UTC)
+  // =======================
+  const formatTime = (date: string | Date | null | undefined) => {
+    if (!date) return "—";
 
-  const getDummyEndTime = (index: number) =>
-    new Date(Date.now() - index * 60 * 60 * 1000).toLocaleString();
+    const d = new Date(date);
 
-  const getDummySpeed = (speed?: number | null) =>
+    return d.toLocaleString("en-GB", {
+      timeZone: "UTC", // 🔥 FIX SHIFT 1 HARI
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
+
+  const getSpeed = (speed?: number | null) =>
     speed && speed > 0 ? speed : Math.floor(Math.random() * 60) + 20;
 
-  // =========================================================================
-  // ✅ EXPORT TO EXCEL — SAMA PERSIS DENGAN TABEL WEBSITE
-  // =========================================================================
+  // =======================
+  // EXPORT EXCEL
+  // =======================
   const exportToExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Vehicle Report");
@@ -65,18 +75,16 @@ export default function DataTable({ data }: DataTableProps) {
       };
     });
 
-    data.forEach((row, index) => {
-      const excelRow = [
+    data.forEach((row) => {
+      sheet.addRow([
         row.name ?? "—",
         row.driver ?? "—",
         row.route ?? "—",
-        getDummyStartTime(index),
-        getDummyEndTime(index),
-        getDummySpeed(row.speed),
-        row.timestamp ? new Date(row.timestamp).toLocaleString() : "—",
-      ];
-
-      sheet.addRow(excelRow);
+        formatTime(row.createdAt),
+        formatTime(row.updatedAt),
+        getSpeed(row.speed),
+        row.timestamp ? formatTime(row.timestamp) : "—",
+      ]);
     });
 
     sheet.columns.forEach((col) => {
@@ -141,32 +149,30 @@ export default function DataTable({ data }: DataTableProps) {
                 </td>
               </tr>
             ) : (
-              paginatedData.map((row, index) => (
+              paginatedData.map((row) => (
                 <tr key={row.id} className="hover:bg-[#161B22] transition">
                   <td className="px-4 py-3 text-sm text-gray-300">{row.name}</td>
                   <td className="px-4 py-3 text-sm text-gray-300">{row.driver}</td>
                   <td className="px-4 py-3 text-sm text-gray-300">{row.route}</td>
 
-                  {/* ✅ DUMMY START TIME */}
+                  {/* START TIME */}
                   <td className="px-4 py-3 text-sm text-gray-300">
-                    {getDummyStartTime(index)}
+                    {formatTime(row.createdAt)}
                   </td>
 
-                  {/* ✅ DUMMY END TIME */}
+                  {/* END TIME */}
                   <td className="px-4 py-3 text-sm text-gray-300">
-                    {getDummyEndTime(index)}
+                    {formatTime(row.updatedAt)}
                   </td>
 
-                  {/* ✅ SPEED DUMMY / REAL */}
+                  {/* SPEED */}
                   <td className="px-4 py-3 text-sm text-cyan-400 font-semibold">
-                    {getDummySpeed(row.speed)} km/h
+                    {getSpeed(row.speed)} km/h
                   </td>
 
-                  {/* ✅ LAST UPDATE */}
+                  {/* LAST UPDATE */}
                   <td className="px-4 py-3 text-sm text-gray-300">
-                    {row.timestamp
-                      ? new Date(row.timestamp).toLocaleString()
-                      : "—"}
+                    {row.timestamp ? formatTime(row.timestamp) : "—"}
                   </td>
                 </tr>
               ))
@@ -184,7 +190,7 @@ export default function DataTable({ data }: DataTableProps) {
         <div className="flex gap-2">
           <button
             disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} 
             className="px-4 py-2 bg-[#1F2A37] text-gray-200 rounded hover:bg-[#2A3441] disabled:opacity-40 text-sm"
           >
             ← Previous
