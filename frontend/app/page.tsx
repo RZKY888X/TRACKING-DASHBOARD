@@ -1,4 +1,3 @@
-// frontend/app/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,43 +8,21 @@ import StatsCards from "@/components/StatsCards";
 import DataTable from "@/components/DataTable";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { UserProfile } from "@/components/UserProfile";
-import { useMQTT } from "@/hooks/useMQTT";
-import { useLoRaWAN } from "@/hooks/useLoRaWAN";
-import { calculateStats } from "@/lib/calculateStats";
-import { Filters, VehicleData, VehiclePosition, VehicleStats } from "@/types";
+import { Filters, VehicleData, VehiclePosition, TripData } from "@/types";
 
 const VehicleMap = dynamic(() => import("@/components/VehicleMap"), {
   ssr: false,
-  loading: () => (
-    <div className="h-[400px] bg-[#0f1729] border border-cyan-400/30 rounded-lg flex items-center justify-center">
-      <div className="text-center">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
-        <p className="mt-2 text-cyan-400">Loading map...</p>
-      </div>
-    </div>
-  ),
 });
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-const MQTT_BROKER_URL = process.env.NEXT_PUBLIC_MQTT_BROKER_URL;
-const LORA_API_URL = process.env.NEXT_PUBLIC_LORA_API_URL;
-const LORA_API_KEY = process.env.NEXT_PUBLIC_LORA_API_KEY;
 
-export default function Home() {
+export default function HomePage() {
   const { data: session } = useSession();
-  const [data, setData] = useState<VehicleData[]>([]);
-  const [stats, setStats] = useState<VehicleStats>({
-    idle: 0,
-    onTrip: 0,
-    completed: 0,
-    avgTripDuration: "-",
-    avgSpeed: 0,
-    onTime: 0,
-    delay: 0,
-    early: 0,
-  });
+  const [trips, setTrips] = useState<TripData[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
-  // ✅ FILTER YANG SUDAH DISUBMIT (UNTUK FETCH)
   const [filters, setFilters] = useState<Filters>({
     dateType: "current",
     dateValue: undefined,
@@ -54,21 +31,12 @@ export default function Home() {
     departure: "",
   });
 
-  // ✅ FILTER DRAFT (UNTUK UI)
   const [draftFilters, setDraftFilters] = useState<Filters>(filters);
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const handleSubmitFilter = () => setFilters(draftFilters);
 
-  // ✅ SUBMIT FILTER
-  const handleSubmitFilter = () => {
-    setFilters(draftFilters);
-  };
-
-  // ✅ CLEAR FILTER
   const handleClearFilters = () => {
-    const reset = {
+    const reset: Filters = {
       dateType: "current",
       dateValue: undefined,
       driver: "",
@@ -79,121 +47,90 @@ export default function Home() {
     setFilters(reset);
   };
 
-  const hasActiveFilters = () => {
-    return (
-      filters.driver !== "" ||
-      filters.route !== "" ||
-      filters.departure !== "" ||
-      (filters.dateValue !== undefined && filters.dateValue !== "Current")
-    );
+  // ===== Fetch trips baru (start) =====
+  const fetchStartTrips = async (): Promise<TripData[]> => {
+    const res = await fetch(`${API_URL}/api/trips/start`, {
+      headers: { Authorization: `Bearer ${session?.accessToken}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch start trips");
+    return res.json();
   };
 
-  // ✅ FETCH DATA
-  const fetchData = async (showRefreshing = false) => {
+  // ===== Fetch ongoing/completed trips & vehicle positions =====
+  const fetchMapData = async (): Promise<{ vehicles: VehicleData[] }> => {
+    const res = await fetch(`${API_URL}/api/dashboard/map`, {
+      headers: { Authorization: `Bearer ${session?.accessToken}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch map data");
+    return res.json();
+  };
+
+  // ===== Combine trips for DataTable =====
+  const loadData = async () => {
     if (!session?.accessToken) return;
-    if (showRefreshing) setRefreshing(true);
-
+    setLoading(true);
+    setError("");
     try {
-      const params = new URLSearchParams();
-      if (filters.driver) params.append("driver", filters.driver);
-      if (filters.route) params.append("route", filters.route);
-      if (filters.departure) params.append("departure", filters.departure);
-      if (filters.dateType) params.append("dateType", filters.dateType);
-      if (filters.dateValue && filters.dateValue !== "Current") {
-        params.append("dateValue", filters.dateValue);
-      }
+      const [startTripsData, mapData] = await Promise.all([
+        fetchStartTrips(),
+        fetchMapData(),
+      ]);
 
-      const res = await fetch(
-        `${API_URL}/api/vehicles/filtered?${params.toString()}`,
-        { headers: { Authorization: `Bearer ${session.accessToken}` } }
-      );
+      const allTrips: TripData[] = startTripsData.map((trip) => {
+        const matched = mapData.vehicles
+          .flatMap((v) => v.trips)
+          .find((t) => t.id === trip.id);
 
-      if (!res.ok) throw new Error("Failed to fetch data");
+        return {
+          id: trip.id,
+          driver: trip.driver,
+          vehicle: trip.vehicle,
+          route: `${trip.origin?.city ?? "-"} → ${matched?.destination?.city ?? "-"}`,
+          start: trip.createdAt,
+          end: matched?.endTime ?? "-",
+          avgSpeed: matched?.avgSpeed ?? "-",
+          status: matched?.status ?? "ON_TRIP",
+          positions: matched?.vehicle?.positions ?? trip.vehicle?.positions ?? [],
+        };
+      });
 
-      const result = await res.json();
-      setData(result);
-      setLastUpdated(new Date());
-    } catch (err) {
+      setTrips(allTrips);
+      setVehicles(mapData.vehicles);
+    } catch (err: any) {
       console.error(err);
+      setError(err.message ?? "Failed to fetch data");
+      setTrips([]);
     } finally {
       setLoading(false);
-      if (showRefreshing) setRefreshing(false);
     }
   };
 
-  // ✅ FETCH STATS
-  const fetchStats = async () => {
-    if (!session?.accessToken) return;
-
-    try {
-      const params = new URLSearchParams();
-      if (filters.driver) params.append("driver", filters.driver);
-      if (filters.route) params.append("route", filters.route);
-      if (filters.departure) params.append("departure", filters.departure);
-      if (filters.dateType) params.append("dateType", filters.dateType);
-      if (filters.dateValue && filters.dateValue !== "Current") {
-        params.append("dateValue", filters.dateValue);
-      }
-
-      const res = await fetch(
-        `${API_URL}/api/stats?${params.toString()}`,
-        { headers: { Authorization: `Bearer ${session.accessToken}` } }
-      );
-
-      if (res.ok) setStats(await res.json());
-      else setStats(calculateStats(data));
-    } catch {
-      setStats(calculateStats(data));
-    }
-  };
-
-  // ✅ FETCH SAAT FILTER DISUBMIT
   useEffect(() => {
-    if (session?.accessToken) {
-      fetchData();
-      fetchStats();
-    }
+    loadData();
   }, [filters, session?.accessToken]);
 
-  // ✅ AUTO REFRESH 10 DETIK (PAKAI FILTER AKTIF)
-  useEffect(() => {
-    if (!session?.accessToken) return;
-    const interval = setInterval(() => {
-      fetchData(true);
-      fetchStats();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [session?.accessToken, filters]);
-
-  const { isConnected: mqttConnected } = useMQTT({
-    enabled: false,
-    brokerUrl: MQTT_BROKER_URL,
-    topics: ["vehicle/position"],
-  });
-
-  const { isConnected: loraConnected } = useLoRaWAN({
-    enabled: false,
-    apiUrl: LORA_API_URL,
-    apiKey: LORA_API_KEY,
-  });
-
-  const vehiclePositions: VehiclePosition[] = data
-    .filter((v) => v.latitude && v.longitude)
-    .map((v) => ({
+  // ===== Vehicle positions for Map =====
+  const vehiclePositions: VehiclePosition[] = vehicles.flatMap((v) =>
+    v.positions?.map((p) => ({
       id: v.id,
       vehicleId: v.id,
-      latitude: v.latitude!,
-      longitude: v.longitude!,
-      speed: v.speed,
-      timestamp: v.timestamp || undefined,
-    }));
+      name: v.name,
+      driver: v.trips?.[0]?.driver?.name ?? "Unknown",
+      route: `${v.trips?.[0]?.origin?.city ?? "-"} → ${v.trips?.[0]?.destination?.city ?? "-"}`,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      speed: p.speed,
+      timestamp: p.timestamp,
+      status: v.trips?.[0]?.status ?? "Idle",
+      startTime: v.trips?.[0]?.createdAt,
+      endTime: v.trips?.[0]?.endTime,
+    })) ?? []
+  );
 
   if (loading) {
     return (
       <ProtectedPage requiredRole="VIEWER">
-        <main className="flex-1 p-6 space-y-6 text-cyan-400">
-          Loading Dashboard...
-        </main>
+        <main className="p-6 text-cyan-400">Loading dashboard...</main>
       </ProtectedPage>
     );
   }
@@ -201,59 +138,50 @@ export default function Home() {
   return (
     <ProtectedPage requiredRole="VIEWER">
       <main className="flex-1 p-6 space-y-6">
-
-        <div className="bg-[#0f1729] border border-cyan-400/30 rounded-xl shadow-lg p-4">
+        {/* Header */}
+        <div className="bg-[#0f1729] border border-cyan-400/30 rounded-xl p-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-cyan-400">
             Vehicle Operation Management System
           </h1>
           <UserProfile />
         </div>
 
-        {/* ✅ FILTER SECTION */}
+        {/* Filters */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg p-4">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between mb-4">
             <h2 className="text-lg font-semibold text-cyan-400">Filters</h2>
-            <div className="flex space-x-3">
-              {hasActiveFilters() && (
-                <button
-                  onClick={handleClearFilters}
-                  className="px-4 py-2 text-sm bg-red-900/30 text-red-300 rounded-lg"
-                >
-                  Clear
-                </button>
-              )}
+            <div className="space-x-2">
+              <button
+                onClick={handleClearFilters}
+                className="px-4 py-2 bg-red-900/30 text-red-300 rounded"
+              >
+                Clear
+              </button>
               <button
                 onClick={handleSubmitFilter}
-                className="px-4 py-2 text-sm bg-cyan-900/30 text-cyan-300 rounded-lg"
+                className="px-4 py-2 bg-cyan-900/30 text-cyan-300 rounded"
               >
-                Submit Filter
+                Submit
               </button>
             </div>
           </div>
-
-          {/* ✅ PAKAI DRAFT FILTER */}
           <FilterSection filters={draftFilters} onFilterChange={setDraftFilters} />
         </div>
 
-        {/* STATS */}
+        {/* Stats Cards */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg p-4">
-          <StatsCards stats={stats} />
+          <StatsCards data={trips} />
         </div>
 
-        {/* ✅ MAP (BISA KAMU PERBESAR LAGI DI VehicleMap) */}
+        {/* Vehicle Map */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg p-4">
           <VehicleMap positions={vehiclePositions} />
         </div>
 
-        {/* TABLE */}
+        {/* Data Table */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg p-4">
-          <DataTable data={data} />
+          {error ? <div className="text-red-400">{error}</div> : <DataTable data={trips} />}
         </div>
-
-        <div className="text-center text-xs text-gray-500">
-          © {new Date().getFullYear()} Fleet Management Dashboard
-        </div>
-
       </main>
     </ProtectedPage>
   );

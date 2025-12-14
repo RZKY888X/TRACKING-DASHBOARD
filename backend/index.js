@@ -137,511 +137,6 @@ async function writeActivityLog({
 }
 
 /* ======================================================
-   ASSIGNMENT APIs
-====================================================== */
-
-// GET users for assignment dropdown
-app.get("/api/assignment/users", authMiddleware, async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      select: { id: true, name: true, email: true, jobRole: true },
-      orderBy: { createdAt: "desc" },
-    });
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "READ",
-      entity: "USER",
-      description: "Viewed assignment users list",
-      req,
-    });
-
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET: Get all assignments (with related data)
-app.get("/api/assignments", authMiddleware, async (req, res) => {
-  try {
-    const assignments = await prisma.assignment.findMany({
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            jobRole: true
-          }
-        },
-        vehicle: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        fromOrigin: {
-          select: {
-            id: true,
-            destination: true
-          }
-        },
-        toDeparture: {
-          select: {
-            id: true,
-            destination: true
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" }
-    });
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "READ",
-      entity: "ASSIGNMENT",
-      description: "Viewed all assignments",
-      req
-    });
-
-    res.json(assignments);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST: Create new assignment dengan update vehicle route
-app.post("/api/assignments", authMiddleware, async (req, res) => {
-  try {
-    console.log("📝 Received assignment data:", req.body);
-    
-    const { 
-      fullName, 
-      email, 
-      jobRole, 
-      vehicle, 
-      routeFrom, 
-      routeTo 
-    } = req.body;
-
-    // Validate required fields
-    if (!fullName || !vehicle) {
-      console.log("❌ Validation failed - Missing fullName or vehicle");
-      return res.status(400).json({ 
-        error: "Nama lengkap dan kendaraan harus diisi" 
-      });
-    }
-
-    // 1. Find user by name (exact match)
-    const user = await prisma.user.findFirst({
-      where: { 
-        name: fullName 
-      }
-    });
-
-    if (!user) {
-      console.log("❌ User not found:", fullName);
-      return res.status(404).json({ 
-        error: `User dengan nama "${fullName}" tidak ditemukan` 
-      });
-    }
-
-    console.log("✅ Found user:", user.name, user.email);
-
-    // 2. Find or create vehicle by name
-    let vehicleRecord = await prisma.vehicle.findFirst({
-      where: { 
-        name: vehicle 
-      }
-    });
-
-    if (!vehicleRecord) {
-      console.log("🆕 Creating new vehicle:", vehicle);
-      vehicleRecord = await prisma.vehicle.create({
-        data: {
-          name: vehicle,
-          driver: user.name
-        }
-      });
-    }
-
-    console.log("✅ Vehicle record:", vehicleRecord.name);
-
-    // 3. Find or create origin
-    let origin = null;
-    if (routeFrom) {
-      origin = await prisma.origin.findFirst({
-        where: { 
-          destination: routeFrom 
-        }
-      });
-
-      if (!origin) {
-        console.log("🆕 Creating new origin:", routeFrom);
-        origin = await prisma.origin.create({
-          data: { 
-            destination: routeFrom 
-          }
-        });
-      }
-    }
-
-    // 4. Find or create departure
-    let departure = null;
-    if (routeTo) {
-      departure = await prisma.departure.findFirst({
-        where: { 
-          destination: routeTo 
-        }
-      });
-
-      if (!departure) {
-        console.log("🆕 Creating new departure:", routeTo);
-        departure = await prisma.departure.create({
-          data: { 
-            destination: routeTo 
-          }
-        });
-      }
-    }
-
-    // 5. Create route string dari routeFrom dan routeTo
-    let routeText = "";
-    if (routeFrom && routeTo) {
-      routeText = `${routeFrom} - ${routeTo}`;
-    } else if (routeFrom) {
-      routeText = routeFrom;
-    } else if (routeTo) {
-      routeText = routeTo;
-    }
-
-    console.log("🛣️ Generated route text:", routeText);
-
-    // 6. Update vehicle dengan driver dan route baru
-    await prisma.vehicle.update({
-      where: { id: vehicleRecord.id },
-      data: { 
-        driver: user.name,
-        route: routeText
-      }
-    });
-
-    console.log("✅ Updated vehicle with route:", routeText);
-
-    // 7. Create the assignment
-    console.log("🔨 Creating assignment...");
-    const assignment = await prisma.assignment.create({
-      data: {
-        userId: user.id,
-        vehicleId: vehicleRecord.id,
-        jobRole: jobRole || user.jobRole || "Driver",
-        fromOriginId: origin ? origin.id : null,
-        toDepartureId: departure ? departure.id : null
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            jobRole: true
-          }
-        },
-        vehicle: {
-          select: {
-            id: true,
-            name: true,
-            driver: true,
-            route: true
-          }
-        },
-        fromOrigin: {
-          select: {
-            id: true,
-            destination: true
-          }
-        },
-        toDeparture: {
-          select: {
-            id: true,
-            destination: true
-          }
-        }
-      }
-    });
-
-    console.log("✅ Assignment created successfully:", assignment.id);
-
-    // Log activity
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "CREATE",
-      entity: "ASSIGNMENT",
-      entityId: String(assignment.id),
-      description: `Created assignment for ${user.name} with vehicle ${vehicle}`,
-      req,
-      metadata: {
-        userName: user.name,
-        vehicle: vehicle,
-        routeFrom: routeFrom,
-        routeTo: routeTo,
-        route: routeText
-      }
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Assignment berhasil dibuat",
-      assignment
-    });
-
-  } catch (err) {
-    console.error("❌ Assignment creation error:", err);
-    
-    if (err.code === 'P2002') {
-      return res.status(400).json({ 
-        error: "Data sudah ada atau duplikat" 
-      });
-    }
-    
-    res.status(500).json({ 
-      error: err.message || "Gagal membuat assignment" 
-    });
-  }
-});
-
-// GET: Get single assignment by ID
-app.get("/api/assignments/:id", authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const assignment = await prisma.assignment.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            jobRole: true
-          }
-        },
-        vehicle: {
-          select: {
-            id: true,
-            name: true,
-            driver: true,
-            route: true
-          }
-        },
-        fromOrigin: {
-          select: {
-            id: true,
-            destination: true
-          }
-        },
-        toDeparture: {
-          select: {
-            id: true,
-            destination: true
-          }
-        }
-      }
-    });
-
-    if (!assignment) {
-      return res.status(404).json({ 
-        error: "Assignment tidak ditemukan" 
-      });
-    }
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "READ",
-      entity: "ASSIGNMENT",
-      entityId: id,
-      description: `Viewed assignment ${id}`,
-      req
-    });
-
-    res.json(assignment);
-  } catch (err) {
-    res.status(500).json({ 
-      error: err.message 
-    });
-  }
-});
-
-// PUT: Update assignment dengan update vehicle route
-app.put("/api/assignments/:id", authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { 
-      userId, 
-      vehicleId, 
-      jobRole, 
-      routeFrom, 
-      routeTo 
-    } = req.body;
-
-    // Check if assignment exists
-    const existing = await prisma.assignment.findUnique({
-      where: { id: parseInt(id) }
-    });
-
-    if (!existing) {
-      return res.status(404).json({ error: "Assignment tidak ditemukan" });
-    }
-
-    // Find origin if routeFrom provided
-    let fromOriginId = existing.fromOriginId;
-    if (routeFrom) {
-      let origin = await prisma.origin.findFirst({
-        where: { destination: routeFrom }
-      });
-
-      if (!origin) {
-        origin = await prisma.origin.create({
-          data: { destination: routeFrom }
-        });
-      }
-      fromOriginId = origin.id;
-    }
-
-    // Find departure if routeTo provided
-    let toDepartureId = existing.toDepartureId;
-    if (routeTo) {
-      let departure = await prisma.departure.findFirst({
-        where: { destination: routeTo }
-      });
-
-      if (!departure) {
-        departure = await prisma.departure.create({
-          data: { destination: routeTo }
-        });
-      }
-      toDepartureId = departure.id;
-    }
-
-    // Update assignment
-    const updated = await prisma.assignment.update({
-      where: { id: parseInt(id) },
-      data: {
-        userId: userId || existing.userId,
-        vehicleId: vehicleId || existing.vehicleId,
-        jobRole: jobRole || existing.jobRole,
-        fromOriginId,
-        toDepartureId
-      },
-      include: {
-        user: true,
-        vehicle: true,
-        fromOrigin: true,
-        toDeparture: true
-      }
-    });
-
-    // Update vehicle route berdasarkan assignment yang diupdate
-    let routeText = "";
-    if (routeFrom && routeTo) {
-      routeText = `${routeFrom} - ${routeTo}`;
-    } else if (routeFrom) {
-      routeText = routeFrom;
-    } else if (routeTo) {
-      routeText = routeTo;
-    }
-
-    if (routeText) {
-      await prisma.vehicle.update({
-        where: { id: updated.vehicleId },
-        data: { route: routeText }
-      });
-    }
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "UPDATE",
-      entity: "ASSIGNMENT",
-      entityId: id,
-      description: `Updated assignment ${id}`,
-      req,
-      metadata: req.body
-    });
-
-    res.json({
-      success: true,
-      message: "Assignment berhasil diperbarui",
-      assignment: updated
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE: Delete assignment
-app.delete("/api/assignments/:id", authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Check if exists
-    const existing = await prisma.assignment.findUnique({
-      where: { id: parseInt(id) }
-    });
-
-    if (!existing) {
-      return res.status(404).json({ 
-        success: false,
-        error: "Assignment tidak ditemukan" 
-      });
-    }
-
-    await prisma.assignment.delete({
-      where: { id: parseInt(id) }
-    });
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "DELETE",
-      entity: "ASSIGNMENT",
-      entityId: id,
-      description: `Deleted assignment ${id}`,
-      req
-    });
-
-    res.json({
-      success: true,
-      message: "Assignment berhasil dihapus"
-    });
-  } catch (err) {
-    res.status(500).json({ 
-      success: false,
-      error: err.message 
-    });
-  }
-});
-
-// GET: Get assignments by user ID
-app.get("/api/assignments/user/:userId", authMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.params;
-    
-    const assignments = await prisma.assignment.findMany({
-      where: { userId },
-      include: {
-        vehicle: true,
-        fromOrigin: true,
-        toDeparture: true
-      },
-      orderBy: { createdAt: "desc" }
-    });
-
-    res.json(assignments);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/* ======================================================
    AUTHENTICATION APIs
 ====================================================== */
 app.post("/api/auth/register", authMiddleware, roleMiddleware(["ADMIN", "SUPERADMIN"]), async (req, res) => {
@@ -961,572 +456,188 @@ app.get("/api/activity/:id", authMiddleware, async (req, res) => {
   }
 });
 
-/* ======================================================
-   VEHICLE APIs (Protected) - DIPERBAIKI
-====================================================== */
-app.get("/api/vehicles", authMiddleware, async (req, res) => {
+
+// GET drivers
+app.get("/api/drivers", async (req, res) => {
   try {
-    const vehicles = await prisma.vehicle.findMany({
-      include: { 
-        positions: { orderBy: { timestamp: "desc" }, take: 1 },
-        assignments: {
-          include: {
-            fromOrigin: true,
-            toDeparture: true
-          },
-          orderBy: { createdAt: "desc" },
-          take: 1
-        }
-      },
-    });
-
-    // Format route dari assignment jika ada
-    const formattedVehicles = vehicles.map(vehicle => {
-      let route = vehicle.route;
-      
-      // Jika ada assignment, ambil route dari assignment
-      if (vehicle.assignments && vehicle.assignments.length > 0) {
-        const assignment = vehicle.assignments[0];
-        const from = assignment.fromOrigin?.destination;
-        const to = assignment.toDeparture?.destination;
-        
-        if (from && to) {
-          route = `${from} - ${to}`;
-        } else if (from) {
-          route = from;
-        } else if (to) {
-          route = to;
-        }
-      }
-
-      return {
-        ...vehicle,
-        route: route
-      };
-    });
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "READ",
-      entity: "VEHICLE",
-      description: "Viewed vehicle list",
-      req,
-    });
-
-    res.json(formattedVehicles);
+    res.json(await prisma.driver.findMany({ orderBy: { name: "asc" } }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get("/api/vehicles/latest", authMiddleware, async (req, res) => {
+// POST driver
+app.post("/api/drivers", async (req, res) => {
   try {
-    const vehicles = await prisma.vehicle.findMany({
-      include: { 
-        positions: { orderBy: { timestamp: "desc" }, take: 1 },
-        assignments: {
-          include: {
-            fromOrigin: true,
-            toDeparture: true
-          },
-          orderBy: { createdAt: "desc" },
-          take: 1
-        }
-      },
-    });
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Driver name required" });
 
-    const flat = vehicles.map((v) => {
-      // Ambil route dari assignment jika ada
-      let route = v.route;
-      if (v.assignments && v.assignments.length > 0) {
-        const assignment = v.assignments[0];
-        const from = assignment.fromOrigin?.destination;
-        const to = assignment.toDeparture?.destination;
-        
-        if (from && to) {
-          route = `${from} - ${to}`;
-        } else if (from) {
-          route = from;
-        } else if (to) {
-          route = to;
-        }
-      }
-
-      return {
-        id: v.id,
-        name: v.name,
-        driver: v.driver,
-        route: route, // Route yang sudah digabungkan
-        latitude: v.positions[0]?.latitude || null,
-        longitude: v.positions[0]?.longitude || null,
-        speed: v.positions[0]?.speed || 0,
-        timestamp: v.positions[0]?.timestamp || null,
-      };
-    });
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "READ",
-      entity: "VEHICLE",
-      description: "Viewed vehicles latest snapshot",
-      req,
-    });
-
-    res.json(flat);
+    res.json(await prisma.driver.create({ data: { name } }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/vehicles", authMiddleware, roleMiddleware(["USER", "ADMIN", "SUPERADMIN"]), async (req, res) => {
+// GET vehicles
+app.get("/api/vehicles", async (req, res) => {
   try {
-    const vehicle = await prisma.vehicle.create({ data: req.body });
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "CREATE",
-      entity: "VEHICLE",
-      entityId: String(vehicle.id),
-      description: `Created vehicle: ${vehicle.name}`,
-      req,
-    });
-
-    res.json(vehicle);
+    res.json(await prisma.vehicle.findMany({ orderBy: { plate: "asc" } }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/vehicle-position", authMiddleware, async (req, res) => {
+// POST vehicle
+app.post("/api/vehicles", async (req, res) => {
   try {
-    const { vehicleId, latitude, longitude, speed } = req.body;
-    const pos = await prisma.position.create({
-      data: { vehicleId, latitude, longitude, speed },
-    });
+    const { plate, type } = req.body;
+    if (!plate) return res.status(400).json({ error: "Plate required" });
 
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "CREATE",
-      entity: "POSITION",
-      entityId: String(pos.id),
-      description: `New vehicle position for vehicleId ${vehicleId}`,
-      req,
-    });
-
-    res.json(pos);
+    res.json(await prisma.vehicle.create({ data: { plate, type } }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ======================================================
-   ORIGINS & DEPARTURES APIs (PUBLIC)
-====================================================== */
-// GET origins (no auth)
-app.get("/api/origins/public", async (req, res) => {
+// GET cities
+app.get("/api/routes", async (req, res) => {
   try {
-    const origins = await prisma.origin.findMany({
-      select: { id: true, destination: true },
-      orderBy: { destination: "asc" },
-    });
-
-    await writeActivityLog({
-      userId: null, // public
-      action: "READ",
-      entity: "ORIGIN",
-      description: "Fetched origins list (public)",
-      req,
-    });
-
-    res.json(origins);
+    res.json(await prisma.route.findMany({ orderBy: { city: "asc" } }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET departures (no auth)
-app.get("/api/departures/public", async (req, res) => {
+// POST city
+app.post("/api/routes", async (req, res) => {
   try {
-    const departures = await prisma.departure.findMany({
-      select: { id: true, destination: true },
-      orderBy: { destination: "asc" },
-    });
+    const { city } = req.body;
+    if (!city) return res.status(400).json({ error: "City required" });
 
-    await writeActivityLog({
-      userId: null, // public
-      action: "READ",
-      entity: "DEPARTURE",
-      description: "Fetched departures list (public)",
-      req,
-    });
-
-    res.json(departures);
+    res.json(await prisma.route.create({ data: { city } }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ======================================================
-   FILTER DATA APIs
-====================================================== */
-
-// GET: Get all unique drivers from vehicles
-app.get("/api/filters/drivers", authMiddleware, async (req, res) => {
+// GET warehouses
+app.get("/api/warehouses", async (req, res) => {
   try {
-    const vehicles = await prisma.vehicle.findMany({
-      select: { driver: true },
-      where: { driver: { not: null } },
-      distinct: ['driver']
-    });
-
-    const drivers = vehicles
-      .map(v => v.driver)
-      .filter(driver => driver && driver.trim() !== "")
-      .sort();
-
-    res.json(drivers);
+    res.json(await prisma.warehouse.findMany({
+      orderBy: { name: "asc" }
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET: Get all unique routes (split from vehicle.route field)
-app.get("/api/filters/routes", authMiddleware, async (req, res) => {
+// POST warehouse
+app.post("/api/warehouses", async (req, res) => {
   try {
-    const vehicles = await prisma.vehicle.findMany({
-      select: { route: true },
-      where: { route: { not: null } }
+    const { name, city, latitude, longitude } = req.body;
+
+    if (!name || !city || !latitude || !longitude)
+      return res.status(400).json({ error: "Incomplete warehouse data" });
+
+    const warehouse = await prisma.warehouse.create({
+      data: { name, city, latitude, longitude }
     });
 
-    const routes = new Set();
-    
-    vehicles.forEach(vehicle => {
-      if (vehicle.route) {
-        // Split combined routes like "Jakarta - Malang"
-        const routeParts = vehicle.route.split(' - ');
-        routeParts.forEach(part => {
-          if (part.trim()) {
-            routes.add(part.trim());
-          }
-        });
+    res.json(warehouse);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// POST /api/trips/start
+app.post("/api/trips/start", async (req, res) => {
+  try {
+    const { driverId, vehicleId, originId } = req.body;
+
+    // Cek trip aktif driver
+    const active = await prisma.trip.findFirst({
+      where: { driverId, status: "ON_TRIP" }
+    });
+    if (active)
+      return res.status(400).json({ error: "Trip still active" });
+
+    // Create trip baru
+    const trip = await prisma.trip.create({
+      data: {
+        driverId,
+        vehicleId,
+        originId,
+        status: "ON_TRIP"
       }
     });
 
-    res.json(Array.from(routes).sort());
+    res.json(trip);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET: Get all origins from origin table
-app.get("/api/filters/origins", async (req, res) => {
+app.post("/api/trips/end", async (req, res) => {
   try {
-    const origins = await prisma.origin.findMany({
-      select: { destination: true },
-      orderBy: { destination: 'asc' }
-    });
+    const { tripId, destinationId, avgSpeed } = req.body;
 
-    const originList = origins.map(o => o.destination);
-    res.json(originList);
+    res.json(await prisma.trip.update({
+      where: { id: tripId },
+      data: {
+        destinationId,
+        status: "COMPLETED",
+        endTime: new Date(),
+        avgSpeed
+      }
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET: Get all departures from departure table
-app.get("/api/filters/departures", async (req, res) => {
+app.post("/api/gps/push", async (req, res) => {
   try {
-    const departures = await prisma.departure.findMany({
-      select: { destination: true },
-      orderBy: { destination: 'asc' }
-    });
+    const { tripId, vehicleId, latitude, longitude, speed } = req.body;
 
-    const departureList = departures.map(d => d.destination);
-    res.json(departureList);
+    res.json(await prisma.position.create({
+      data: { tripId, vehicleId, latitude, longitude, speed }
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET: Get all unique values for filters (combined)
-app.get("/api/filters/all", authMiddleware, async (req, res) => {
-  try {
-    // Get drivers
-    const vehicles = await prisma.vehicle.findMany({
-      select: { driver: true },
-      where: { driver: { not: null } },
-      distinct: ['driver']
-    });
-
-    const drivers = vehicles
-      .map(v => v.driver)
-      .filter(driver => driver && driver.trim() !== "")
-      .sort();
-
-    // Get origins
-    const origins = await prisma.origin.findMany({
-      select: { destination: true },
-      orderBy: { destination: 'asc' }
-    });
-
-    const originList = origins.map(o => o.destination);
-
-    // Get departures
-    const departures = await prisma.departure.findMany({
-      select: { destination: true },
-      orderBy: { destination: 'asc' }
-    });
-
-    const departureList = departures.map(d => d.destination);
-
-    res.json({
-      drivers,
-      origins: originList,
-      departures: departureList,
-      routes: [...originList, ...departureList].filter((v, i, a) => a.indexOf(v) === i).sort()
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// backend/index.js - Tambahkan API berikut:
-
-// GET: Get all unique drivers (dari tabel Vehicle)
-app.get("/api/filters/drivers", authMiddleware, async (req, res) => {
+app.get("/api/dashboard/map", async (req, res) => {
   try {
     const vehicles = await prisma.vehicle.findMany({
-      select: { driver: true },
-      where: { driver: { not: null } },
-      distinct: ['driver']
-    });
-
-    const drivers = vehicles
-      .map(v => v.driver)
-      .filter(driver => driver && driver.trim() !== "")
-      .sort();
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "READ",
-      entity: "FILTER",
-      description: "Fetched drivers for filter",
-      req,
-    });
-
-    res.json(drivers);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET: Get all unique routes (dari tabel Vehicle.route dan Assignment)
-app.get("/api/filters/routes", authMiddleware, async (req, res) => {
-  try {
-    // Ambil dari vehicle.route
-    const vehicles = await prisma.vehicle.findMany({
-      select: { route: true },
-      where: { route: { not: null } }
-    });
-
-    // Ambil dari assignment (origin + departure)
-    const assignments = await prisma.assignment.findMany({
       include: {
-        fromOrigin: { select: { destination: true } },
-        toDeparture: { select: { destination: true } }
-      }
-    });
-
-    const routeSet = new Set();
-    
-    // Tambahkan dari vehicle.route
-    vehicles.forEach(vehicle => {
-      if (vehicle.route && vehicle.route.includes(" - ")) {
-        const [from, to] = vehicle.route.split(" - ");
-        routeSet.add(from.trim());
-        routeSet.add(to.trim());
-      } else if (vehicle.route) {
-        routeSet.add(vehicle.route.trim());
-      }
-    });
-
-    // Tambahkan dari assignment
-    assignments.forEach(assignment => {
-      if (assignment.fromOrigin?.destination) {
-        routeSet.add(assignment.fromOrigin.destination);
-      }
-      if (assignment.toDeparture?.destination) {
-        routeSet.add(assignment.toDeparture.destination);
-      }
-    });
-
-    const routes = Array.from(routeSet).sort();
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "READ",
-      entity: "FILTER",
-      description: "Fetched routes for filter",
-      req,
-    });
-
-    res.json(routes);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET: Vehicle data with filters
-app.get("/api/vehicles/filtered", authMiddleware, async (req, res) => {
-  try {
-    const { driver, route, departure, dateType, dateValue } = req.query;
-
-    // Base query
-    const where = {};
-
-    // Filter by driver
-    if (driver) {
-      where.driver = { contains: driver, mode: "insensitive" };
-    }
-
-    // Filter by route (from vehicle.route or assignment)
-    if (route) {
-      where.OR = [
-        { route: { contains: route, mode: "insensitive" } },
-        {
-          assignments: {
-            some: {
-              OR: [
-                { fromOrigin: { destination: { contains: route, mode: "insensitive" } } },
-                { toDeparture: { destination: { contains: route, mode: "insensitive" } } }
-              ]
-            }
+        positions: { take: 1, orderBy: { timestamp: "desc" } },
+        statuses: { take: 1, orderBy: { timestamp: "desc" } },
+        trips: {
+          where: { status: "ON_TRIP" },
+          include: {
+            origin: true,
+            destination: true,
+            driver: true,
+            user: true
           }
         }
-      ];
-    }
-
-    // Filter by departure (specific to departure table)
-    if (departure) {
-      where.assignments = {
-        some: {
-          toDeparture: { destination: { contains: departure, mode: "insensitive" } }
-        }
-      };
-    }
-
-    // Date filter logic
-    if (dateType && dateValue && dateValue !== "Current") {
-      const today = new Date();
-      let startDate, endDate;
-
-      if (dateType === "daily") {
-        startDate = new Date(dateValue);
-        endDate = new Date(dateValue);
-        endDate.setDate(endDate.getDate() + 1);
-      } else if (dateType === "weekly") {
-        // Parse week string like "2024-01 Week 2"
-        const match = dateValue.match(/(\d{4}-\d{2}).*Week\s*(\d+)/i);
-        if (match) {
-          const [_, monthStr, weekNum] = match;
-          const yearMonth = monthStr.split('-');
-          const year = parseInt(yearMonth[0]);
-          const month = parseInt(yearMonth[1]) - 1;
-          const week = parseInt(weekNum);
-          
-          // Simple week calculation (approximate)
-          const firstDay = new Date(year, month, 1);
-          const dayOffset = (week - 1) * 7;
-          startDate = new Date(firstDay);
-          startDate.setDate(firstDay.getDate() + dayOffset);
-          endDate = new Date(startDate);
-          endDate.setDate(startDate.getDate() + 7);
-        }
-      } else if (dateType === "monthly") {
-        const yearMonth = dateValue.split('-');
-        const year = parseInt(yearMonth[0]);
-        const month = parseInt(yearMonth[1]) - 1;
-        startDate = new Date(year, month, 1);
-        endDate = new Date(year, month + 1, 0);
       }
-
-      if (startDate && endDate) {
-        where.createdAt = {
-          gte: startDate,
-          lte: endDate
-        };
-      }
-    }
-
-    const vehicles = await prisma.vehicle.findMany({
-      where,
-      include: {
-        positions: { 
-          orderBy: { timestamp: "desc" }, 
-          take: 1 
-        },
-        assignments: {
-          include: {
-            fromOrigin: true,
-            toDeparture: true
-          },
-          orderBy: { createdAt: "desc" },
-          take: 1
-        }
-      },
-      orderBy: { updatedAt: "desc" }
     });
 
-    // Format vehicles dengan route dari assignment
-    const formattedVehicles = vehicles.map(vehicle => {
-      let displayRoute = vehicle.route;
-      
-      // Jika ada assignment, gabungkan origin dan departure
-      if (vehicle.assignments && vehicle.assignments.length > 0) {
-        const assignment = vehicle.assignments[0];
-        const from = assignment.fromOrigin?.destination;
-        const to = assignment.toDeparture?.destination;
-        
-        if (from && to) {
-          displayRoute = `${from} - ${to}`;
-        } else if (from) {
-          displayRoute = from;
-        } else if (to) {
-          displayRoute = to;
-        }
-      }
+    const warehouses = await prisma.warehouse.findMany();
 
-      return {
-        ...vehicle,
-        route: displayRoute,
-        latitude: vehicle.positions[0]?.latitude || null,
-        longitude: vehicle.positions[0]?.longitude || null,
-        speed: vehicle.positions[0]?.speed || null,
-        timestamp: vehicle.positions[0]?.timestamp || null
-      };
-    });
-
-    await writeActivityLog({
-      userId: req.user?.id,
-      action: "READ",
-      entity: "VEHICLE",
-      description: `Filtered vehicles with params: ${JSON.stringify(req.query)}`,
-      req,
-    });
-
-    res.json(formattedVehicles);
+    res.json({ vehicles, warehouses });
   } catch (err) {
-    console.error("Filter error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 /* ======================================================
    START SERVER
 ====================================================== */
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📝 Assignment API available at: http://localhost:${PORT}/api/assignments`);
-  console.log(`🚗 Vehicle API available at: http://localhost:${PORT}/api/vehicles/latest`);
 });

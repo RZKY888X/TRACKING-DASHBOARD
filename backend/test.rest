@@ -1,20 +1,192 @@
-POST http://localhost:3001/api/auth/login
+##################################################
+### CREATE DRIVER
+##################################################
+POST http://localhost:3001/api/drivers
 Content-Type: application/json
 
 {
-  "email": "admin@example.com",
-  "password": "Pw123"
+  "name": "Driver A"
 }
 
-GET http://localhost:3001/api/auth/profile
+##################################################
+### CREATE DRIVER
+##################################################
+POST http://localhost:3001/api/drivers
+Content-Type: application/json
+
 {
-  id: string,
-  email: string,
-  name: string,
-  role: "VIEWER" | "USER" | "ADMIN" | "SUPERADMIN",
-  lastLoginAt: string | null,
-  createdAt: string,
-  updatedAt: string,
-  profileImage: string | null,
-  jobRole: string | null
+  "name": "Driver B"
 }
+
+##################################################
+### GET ALL DRIVERS
+##################################################
+GET http://localhost:3001/api/drivers
+Content-Type: application/json
+
+##################################################
+### CREATE VEHICLE
+##################################################
+POST http://localhost:3001/api/vehicles
+Content-Type: application/json
+
+{
+  "plate": "B 1234 XYZ",
+  "type": "Truck"
+}
+
+##################################################
+### CREATE VEHICLE
+##################################################
+POST http://localhost:3001/api/vehicles
+Content-Type: application/json
+
+{
+  "plate": "B 5678 ABC",
+  "type": "Van"
+}
+
+##################################################
+### GET ALL VEHICLES
+##################################################
+GET http://localhost:3001/api/vehicles
+Content-Type: application/json
+
+##################################################
+### CREATE WAREHOUSE - GUDANG A (Jakarta)
+##################################################
+POST http://localhost:3001/api/warehouses
+Content-Type: application/json
+
+{
+  "name": "Gudang A",
+  "city": "Jakarta",
+  "latitude": -6.200000,
+  "longitude": 106.816666
+}
+
+##################################################
+### CREATE WAREHOUSE - GUDANG B (Bandung)
+##################################################
+POST http://localhost:3001/api/warehouses
+Content-Type: application/json
+
+{
+  "name": "Gudang B",
+  "city": "Bandung",
+  "latitude": -6.914744,
+  "longitude": 107.609810
+}
+
+##################################################
+### GET ALL WAREHOUSES
+##################################################
+GET http://localhost:3001/api/warehouses
+Content-Type: application/json
+
+##################################################
+### START TRIP - Driver A from Gudang A
+##################################################
+POST http://localhost:3001/api/trips/start
+Content-Type: application/json
+
+{
+  "driverId": 1,
+  "vehicleId": 1,
+  "originId": 1
+}
+
+##################################################
+### START TRIP - Driver B from Gudang B
+##################################################
+POST http://localhost:3001/api/trips/start
+Content-Type: application/json
+
+{
+  "driverId": 2,
+  "vehicleId": 2,
+  "originId": 2
+}
+
+##################################################
+### PUSH GPS POSITION - Vehicle 1
+##################################################
+POST http://localhost:3001/api/gps/push
+Content-Type: application/json
+
+{
+  "tripId": 1,
+  "vehicleId": 1,
+  "latitude": -6.201000,
+  "longitude": 106.817000,
+  "speed": 45
+}
+
+##################################################
+### PUSH GPS POSITION - Vehicle 2
+##################################################
+POST http://localhost:3001/api/gps/push
+Content-Type: application/json
+
+{
+  "tripId": 2,
+  "vehicleId": 2,
+  "latitude": -6.915000,
+  "longitude": 107.610000,
+  "speed": 50
+}
+
+##################################################
+### PUSH VEHICLE STATUS - Vehicle 1
+##################################################
+POST http://localhost:3001/api/status/push
+Content-Type: application/json
+
+{
+  "vehicleId": 1,
+  "isOnline": true,
+  "battery": 80
+}
+
+##################################################
+### PUSH VEHICLE STATUS - Vehicle 2
+##################################################
+POST http://localhost:3001/api/status/push
+Content-Type: application/json
+
+{
+  "vehicleId": 2,
+  "isOnline": true,
+  "battery": 60
+}
+
+##################################################
+### END TRIP - Driver A to Gudang B
+##################################################
+POST http://localhost:3001/api/trips/end
+Content-Type: application/json
+
+{
+  "tripId": 1,
+  "destinationId": 2,
+  "avgSpeed": 48
+}
+
+##################################################
+### END TRIP - Driver B to Gudang A
+##################################################
+POST http://localhost:3001/api/trips/end
+Content-Type: application/json
+
+{
+  "tripId": 2,
+  "destinationId": 1,
+  "avgSpeed": 52
+}
+
+##################################################
+### GET DASHBOARD MAP
+##################################################
+GET http://localhost:3001/api/dashboard/map
+Content-Type: application/json
+

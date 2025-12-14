@@ -7,64 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Vehicle {
-  id          Int          @id @default(autoincrement())
-  name        String
-  driver      String?
-  route       String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  assignments Assignment[]
-  positions   Position[]
-  statuses    Status[]
+//////////////////////////////////////////////////
+// ENUM
+//////////////////////////////////////////////////
+
+enum Role {
+  VIEWER
+  USER
+  ADMIN
+  SUPERADMIN
 }
 
-model Driver {
-  id   Int    @id @default(autoincrement())
-  name String @unique
+enum TripStatus {
+  ON_TRIP
+  COMPLETED
 }
 
-model Route {
-  id              Int          @id @default(autoincrement())
-  name            String       @unique
-  origin          String?
-  departure       String?
-  fromAssignments Assignment[] @relation("FromRoute")
-  toAssignments   Assignment[] @relation("ToRoute")
-}
-
-model Origin {
-  id              Int          @id @default(autoincrement())
-  destination     String       @unique
-  coords          Json?        // NEW: posisi titik pada map
-  fromAssignments Assignment[] @relation("FromOrigin")
-}
-
-model Departure {
-  id            Int          @id @default(autoincrement())
-  destination   String       @unique
-  coords        Json?        // NEW: posisi titik pada map
-  toAssignments Assignment[] @relation("ToDeparture")
-}
-
-model Position {
-  id        Int      @id @default(autoincrement())
-  vehicleId Int
-  latitude  Float
-  longitude Float
-  speed     Float?
-  timestamp DateTime @default(now())
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-}
-
-model Status {
-  id        Int      @id @default(autoincrement())
-  vehicleId Int
-  isOnline  Boolean  @default(true)
-  battery   Int?
-  timestamp DateTime @default(now())
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-}
+//////////////////////////////////////////////////
+// USER & LOG
+//////////////////////////////////////////////////
 
 model User {
   id           String        @id @default(cuid())
@@ -79,7 +40,8 @@ model User {
   profileImage String?
   jobRole      String?
   activities   ActivityLog[]
-  assignments  Assignment[]
+
+  trips        Trip[]
 }
 
 model ActivityLog {
@@ -93,62 +55,102 @@ model ActivityLog {
   userAgent   String?
   metadata    Json?
   createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
   @@index([action])
 }
 
-/// ===========================================
-/// ASSIGNMENT SYSTEM (NEW)
-/// ===========================================
-model Assignment {
+//////////////////////////////////////////////////
+// MASTER DATA
+//////////////////////////////////////////////////
+
+model Driver {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  trips     Trip[]
+}
+
+model Vehicle {
+  id        Int      @id @default(autoincrement())
+  plate     String   @unique
+  type      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trips     Trip[]
+  positions Position[]
+  statuses  VehicleStatus[]
+}
+
+model Warehouse {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique       // misal: "Gudang A"
+  city      String
+  latitude  Float
+  longitude Float
+
+  originTrips      Trip[] @relation("OriginWarehouse")
+  destinationTrips Trip[] @relation("DestinationWarehouse")
+}
+
+//////////////////////////////////////////////////
+// OPERATIONAL CORE
+//////////////////////////////////////////////////
+
+model Trip {
   id            Int        @id @default(autoincrement())
-  userId        String
+  driverId      Int
   vehicleId     Int
-  fromId        Int?
-  toId          Int?
-  jobRole       String
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  fromOriginId  Int?
-  toDepartureId Int?
-  fromRoute     Route?     @relation("FromRoute", fields: [fromId], references: [id])
-  fromOrigin    Origin?    @relation("FromOrigin", fields: [fromOriginId], references: [id])
-  toDeparture   Departure? @relation("ToDeparture", fields: [toDepartureId], references: [id])
-  toRoute       Route?     @relation("ToRoute", fields: [toId], references: [id])
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  vehicle       Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  userId        String?
 
-  @@index([userId])
-  @@index([vehicleId])
-  @@index([fromId])
-  @@index([toId])
-  @@index([fromOriginId])
-  @@index([toDepartureId])
+  originId      Int
+  destinationId Int?
+
+  status        TripStatus @default(ON_TRIP)
+  startTime     DateTime   @default(now())
+  endTime       DateTime?
+  avgSpeed      Float?
+
+  driver        Driver     @relation(fields: [driverId], references: [id])
+  vehicle       Vehicle    @relation(fields: [vehicleId], references: [id])
+  user          User?       @relation(fields: [userId], references: [id])
+
+  origin        Warehouse  @relation("OriginWarehouse", fields: [originId], references: [id])
+  destination   Warehouse? @relation("DestinationWarehouse", fields: [destinationId], references: [id])
+
+  positions     Position[]
+
+  @@index([status])
+  @@index([startTime])
 }
 
-enum Role {
-  VIEWER
-  USER
-  ADMIN
-  SUPERADMIN
+model Position {
+  id        Int      @id @default(autoincrement())
+  tripId    Int
+  vehicleId Int
+
+  latitude  Float
+  longitude Float
+  speed     Float?
+  timestamp DateTime @default(now())
+
+  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([timestamp])
 }
 
-/// ===========================================
-/// 1. NEW TABLE — Plat
-/// ===========================================
-model Plat {
-  id             Int    @id @default(autoincrement())
-  platKendaraan  String @unique
-  jenisKendaraan String
-}
+model VehicleStatus {
+  id        Int      @id @default(autoincrement())
+  vehicleId Int
+  isOnline  Boolean @default(true)
+  battery   Int?
+  timestamp DateTime @default(now())
 
-/// ===========================================
-/// 2. NEW TABLE — JobRole
-/// ===========================================
-model JobRole {
-  id  Int    @id @default(autoincrement())
-  job String @unique
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 }
