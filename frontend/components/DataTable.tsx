@@ -24,7 +24,7 @@ export default function DataTable({ filters }: Props) {
       try {
         setLoading(true);
         
-        // Build query params dari filters
+        // Build query params
         const params = new URLSearchParams();
         
         if (filters) {
@@ -59,7 +59,14 @@ export default function DataTable({ filters }: Props) {
         
         if (data.success) {
           console.log(`✅ Received ${data.trips?.length || 0} trips`);
-          setTrips(data.trips || []);
+          // Sort trips: ON_TRIP first, then by startTime desc
+          const sortedTrips = (data.trips || []).sort((a: any, b: any) => {
+            if (a.status === "ON_TRIP" && b.status !== "ON_TRIP") return -1;
+            if (a.status !== "ON_TRIP" && b.status === "ON_TRIP") return 1;
+            return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+          });
+          
+          setTrips(sortedTrips);
           setTotal(data.count || 0);
         } else {
           console.error("❌ API returned error:", data.error);
@@ -104,11 +111,53 @@ export default function DataTable({ filters }: Props) {
   const getStatusBadge = (status: string) => {
     switch(status) {
       case "ON_TRIP":
-        return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded text-xs">ON TRIP</span>;
+        return (
+          <div className="flex items-center">
+            <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2 animate-pulse"></div>
+            <span className="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded text-xs">ON TRIP</span>
+          </div>
+        );
       case "COMPLETED":
-        return <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs">COMPLETED</span>;
+        return (
+          <div className="flex items-center">
+            <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+            <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs">COMPLETED</span>
+          </div>
+        );
       default:
-        return <span className="px-2 py-1 bg-gray-500/20 text-gray-300 rounded text-xs">{status}</span>;
+        return (
+          <div className="flex items-center">
+            <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
+            <span className="px-2 py-1 bg-gray-500/20 text-gray-300 rounded text-xs">{status}</span>
+          </div>
+        );
+    }
+  };
+
+  const getSpeedDisplay = (trip: any) => {
+    // Prioritaskan avgSpeed dari database jika ada
+    if (trip.avgSpeed !== null && trip.avgSpeed !== undefined) {
+      return {
+        value: trip.avgSpeed,
+        source: "database",
+        tooltip: "Average speed from database"
+      };
+    }
+    // Jika tidak ada avgSpeed, gunakan dari latest position
+    else if (trip.latestPosition?.speed) {
+      return {
+        value: trip.latestPosition.speed,
+        source: "gps",
+        tooltip: "Latest GPS speed"
+      };
+    }
+    // Jika tidak ada sama sekali
+    else {
+      return {
+        value: 0,
+        source: "none",
+        tooltip: "No speed data available"
+      };
     }
   };
 
@@ -129,14 +178,16 @@ export default function DataTable({ filters }: Props) {
   return (
     <div className="bg-[#0D1117] border border-[#1F2A37] rounded-lg">
       <div className="p-4 border-b border-[#1F2A37] flex justify-between items-center">
-        <h2 className="text-lg text-gray-100 font-semibold">Trip Table</h2>
-        <div className="text-sm text-gray-400">
-          Showing {paginated.length} of {trips.length} trips
-          {filters?.dateType && (
-            <span className="ml-2 text-cyan-400">
-              • Filter: {filters.dateType} {filters.dateValue ? `(${filters.dateValue})` : ''}
-            </span>
-          )}
+        <div>
+          <h2 className="text-lg text-gray-100 font-semibold">Trip Table</h2>
+          <p className="text-sm text-gray-400 mt-1">
+            Showing {paginated.length} of {trips.length} trips
+            {filters?.dateType && (
+              <span className="ml-2 text-cyan-400">
+                • Filter: {filters.dateType} {filters.dateValue ? `(${filters.dateValue})` : ''}
+              </span>
+            )}
+          </p>
         </div>
       </div>
 
@@ -170,34 +221,39 @@ export default function DataTable({ filters }: Props) {
                 </td>
               </tr>
             ) : (
-              paginated.map((trip) => {
-                const latestPosition = trip.vehicle?.positions?.[0];
-                const speed = latestPosition?.speed || trip.avgSpeed || 0;
+              paginated.map((trip: any) => {
+                const speedInfo = getSpeedDisplay(trip);
+                const isActive = trip.status === "ON_TRIP";
 
                 return (
-                  <tr key={trip.id} className="hover:bg-[#161B22]">
+                  <tr key={trip.id} className={`hover:bg-[#161B22] ${isActive ? 'bg-[#0f1729]/50' : ''}`}>
                     {/* Vehicle */}
-                    <td className="px-4 py-3 text-gray-300">
-                      <div className="font-medium">{trip.vehicle?.plate || "Unknown"}</div>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-300">{trip.vehicle?.plate || "Unknown"}</div>
                       <div className="text-xs text-gray-400">{trip.vehicle?.type || "No Type"}</div>
                     </td>
 
                     {/* Driver */}
-                    <td className="px-4 py-3 text-gray-300">
-                      {trip.driver?.name || "Unknown Driver"}
+                    <td className="px-4 py-3">
+                      <div className="text-gray-300">{trip.driver?.name || "Unknown Driver"}</div>
                     </td>
 
                     {/* Route */}
-                    <td className="px-4 py-3 text-gray-300">
-                      <div className="flex items-center">
-                        <div className="flex-1">
-                          <div className="font-medium">{trip.origin?.name || "Unknown"}</div>
-                          <div className="text-xs text-gray-400">{trip.origin?.city || ""}</div>
+                    <td className="px-4 py-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center text-gray-300">
+                          <svg className="w-4 h-4 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          </svg>
+                          <span className="font-medium">{trip.origin?.name || "Unknown"}</span>
+                          <span className="mx-2 text-gray-500">→</span>
+                          <svg className="w-4 h-4 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          </svg>
+                          <span className="font-medium">{trip.destination?.name || "Unknown"}</span>
                         </div>
-                        <span className="mx-2">→</span>
-                        <div className="flex-1">
-                          <div className="font-medium">{trip.destination?.name || "Unknown"}</div>
-                          <div className="text-xs text-gray-400">{trip.destination?.city || ""}</div>
+                        <div className="text-xs text-gray-400 pl-6">
+                          {trip.origin?.city || ""} → {trip.destination?.city || ""}
                         </div>
                       </div>
                     </td>
@@ -208,25 +264,40 @@ export default function DataTable({ filters }: Props) {
                     </td>
 
                     {/* Start */}
-                    <td className="px-4 py-3 text-gray-300">
-                      {formatTime(trip.startTime)}
+                    <td className="px-4 py-3">
+                      <div className="text-gray-300">{formatTime(trip.startTime)}</div>
                     </td>
 
                     {/* End */}
-                    <td className="px-4 py-3 text-gray-300">
-                      {formatTime(trip.endTime)}
+                    <td className="px-4 py-3">
+                      <div className="text-gray-300">{formatTime(trip.endTime)}</div>
                     </td>
 
                     {/* Speed */}
                     <td className="px-4 py-3">
-                      <div className="text-cyan-400 font-medium">
-                        {speed ? `${speed} km/h` : "—"}
+                      <div className="relative group">
+                        <div className={`font-medium ${
+                          speedInfo.source === "database" 
+                            ? 'text-green-400' 
+                            : speedInfo.source === "gps" 
+                            ? 'text-yellow-400' 
+                            : 'text-gray-400'
+                        }`}>
+                          {speedInfo.value > 0 ? `${speedInfo.value} km/h` : "—"}
+                        </div>
+                        {speedInfo.tooltip && (
+                          <div className="absolute z-10 hidden group-hover:block bg-[#1F2A37] text-xs text-gray-300 px-2 py-1 rounded mt-1">
+                            {speedInfo.tooltip}
+                          </div>
+                        )}
                       </div>
                     </td>
 
                     {/* Last Update */}
-                    <td className="px-4 py-3 text-gray-300">
-                      {formatTime(latestPosition?.timestamp)}
+                    <td className="px-4 py-3">
+                      <div className="text-gray-300">
+                        {formatTime(trip.latestPosition?.timestamp)}
+                      </div>
                     </td>
                   </tr>
                 );

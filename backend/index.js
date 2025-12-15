@@ -634,7 +634,230 @@ app.get("/api/dashboard/map", async (req, res) => {
   }
 });
 
-// GET trips dengan filter yang lengkap - REVISI
+function parseNameAndCity(str) {
+  if (!str) return { name: null, city: null };
+  const match = str.match(/(.*)\s*\((.*)\)/);
+  if (match) {
+    return { 
+      name: match[1].trim(), 
+      city: match[2].trim() 
+    };
+  } else {
+    return { 
+      name: str.trim(), 
+      city: null 
+    };
+  }
+}
+
+// Di dalam index.js, ganti fungsi buildDateFilter dan tambahkan endpoint yang lebih spesifik
+
+function buildDateFilter(dateType, dateValue) {
+  if (!dateType || !dateValue) return {};
+  
+  const now = new Date();
+  let startDate, endDate;
+
+  switch (dateType) {
+    case "current":
+      return {};
+
+    case "daily":
+      const dailyDate = new Date(dateValue);
+      startDate = new Date(dailyDate.setHours(0, 0, 0, 0));
+      endDate = new Date(dailyDate.setHours(23, 59, 59, 999));
+      return {
+        startTime: {
+          gte: startDate,
+          lte: endDate
+        }
+      };
+
+    case "weekly":
+      if (dateValue.includes('Week')) {
+        const [yearMonth, weekStr] = dateValue.split(' Week ');
+        const [year, month] = yearMonth.split('-').map(Number);
+        const week = parseInt(weekStr);
+        
+        const weekStart = (week - 1) * 7 + 1;
+        const weekEnd = week * 7;
+        
+        startDate = new Date(year, month - 1, weekStart, 0, 0, 0, 0);
+        endDate = new Date(year, month - 1, weekEnd, 23, 59, 59, 999);
+        
+        return {
+          startTime: {
+            gte: startDate,
+            lte: endDate
+          }
+        };
+      }
+      return {};
+
+    case "monthly":
+      const [year, month] = dateValue.split('-').map(Number);
+      startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month, 0, 23, 59, 59, 999);
+      
+      return {
+        startTime: {
+          gte: startDate,
+          lte: endDate
+        }
+      };
+
+    default:
+      return {};
+  }
+}
+
+
+// GET filter options cascade - VERSI TERBAIK
+app.get("/api/filter/cascade-options", authMiddleware, async (req, res) => {
+  try {
+    const { dateType, dateValue, driverName, originName } = req.query;
+    
+    console.log("🔍 Cascade filter options:", { dateType, dateValue, driverName, originName });
+
+    // Build base filter
+    const dateFilter = buildDateFilter(dateType, dateValue);
+    const baseWhere = dateFilter;
+
+    // Step 1: Get ALL drivers (for current view) atau berdasarkan date filter
+    let driverWhere = {};
+    if (dateType === "current") {
+      // Untuk current, ambil semua driver yang pernah ada trip
+      const allDrivers = await prisma.driver.findMany({
+        select: { id: true, name: true }
+      });
+      var drivers = allDrivers;
+    } else {
+      // Untuk date filter, ambil driver yang punya trip di tanggal tersebut
+      const driverTrips = await prisma.trip.findMany({
+        where: baseWhere,
+        select: {
+          driver: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        },
+        distinct: ['driverId']
+      });
+      var drivers = driverTrips.map(t => t.driver).filter(Boolean);
+    }
+
+    // Step 2: Get origins untuk driver yang dipilih atau semua origins
+    let origins = [];
+    if (drivers.length > 0) {
+      let originWhere = dateType === "current" ? {} : { ...baseWhere };
+      
+      // Filter by driver jika selected
+      if (driverName && driverName !== "Select Driver" && driverName !== "No drivers available") {
+        const cleanDriverName = driverName.split('(')[0].trim();
+        const driver = drivers.find(d => d.name === cleanDriverName);
+        if (driver) {
+          originWhere.driverId = driver.id;
+        }
+      }
+
+      const originTrips = await prisma.trip.findMany({
+        where: originWhere,
+        select: {
+          origin: {
+            select: {
+              id: true,
+              name: true,
+              city: true
+            }
+          }
+        },
+        distinct: ['originId']
+      });
+
+      origins = originTrips.map(t => t.origin).filter(Boolean);
+    }
+
+    // Step 3: Get destinations untuk driver DAN origin yang dipilih
+    let destinations = [];
+    if (origins.length > 0) {
+      let destWhere = dateType === "current" ? {} : { ...baseWhere };
+      
+      // Filter by driver jika selected
+      if (driverName && driverName !== "Select Driver" && driverName !== "No drivers available") {
+        const cleanDriverName = driverName.split('(')[0].trim();
+        const driver = drivers.find(d => d.name === cleanDriverName);
+        if (driver) {
+          destWhere.driverId = driver.id;
+        }
+      }
+      
+      // Filter by origin jika selected
+      if (originName && originName !== "Select Origin" && originName !== "No origins available") {
+        const cleanOriginName = originName.split('(')[0].trim();
+        const origin = origins.find(o => 
+          o.name === cleanOriginName || 
+          `${o.name} (${o.city})` === originName
+        );
+        if (origin) {
+          destWhere.originId = origin.id;
+        }
+      }
+
+      // Hanya ambil trips yang punya destination
+      destWhere.destinationId = { not: null };
+
+      const destTrips = await prisma.trip.findMany({
+        where: destWhere,
+        select: {
+          destination: {
+            select: {
+              id: true,
+              name: true,
+              city: true
+            }
+          }
+        },
+        distinct: ['destinationId']
+      });
+
+      destinations = destTrips.map(t => t.destination).filter(Boolean);
+    }
+
+    console.log(`📊 Cascade results: ${drivers.length} drivers, ${origins.length} origins, ${destinations.length} destinations`);
+
+    res.json({
+      success: true,
+      drivers: drivers.map(d => ({
+        id: d.id,
+        name: d.name
+      })),
+      origins: origins.map(o => ({
+        id: o.id,
+        name: o.name,
+        city: o.city
+      })),
+      destinations: destinations.map(d => ({
+        id: d.id,
+        name: d.name,
+        city: d.city
+      }))
+    });
+
+  } catch (err) {
+    console.error("❌ Error in cascade options:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message,
+      drivers: [],
+      origins: [],
+      destinations: []
+    });
+  }
+});
+
+// GET trips filter dengan speed yang benar - VERSI TERBAIK
 app.get("/api/trips/filter", authMiddleware, async (req, res) => {
   try {
     const {
@@ -645,66 +868,11 @@ app.get("/api/trips/filter", authMiddleware, async (req, res) => {
       destinationName
     } = req.query;
 
-    console.log("📊 Filter params:", { dateType, dateValue, driverName, originName, destinationName });
+    console.log("📊 Filter trips params:", { dateType, dateValue, driverName, originName, destinationName });
 
-    // Build filter object
-    const where = {};
-
-    // Filter by dateType
-    if (dateType) {
-      const now = new Date();
-      
-      switch (dateType) {
-        case "current":
-          // Current: ambil semua data tanpa filter tanggal
-          // Tidak ada filter tanggal untuk current
-          break;
-          
-        case "daily":
-          if (dateValue) {
-            const dailyDate = new Date(dateValue);
-            const startDate = new Date(dailyDate.setHours(0, 0, 0, 0));
-            const endDate = new Date(dailyDate.setHours(23, 59, 59, 999));
-            where.startTime = {
-              gte: startDate,
-              lte: endDate
-            };
-          }
-          break;
-          
-        case "weekly":
-          if (dateValue && dateValue.includes('Week')) {
-            const [yearMonth, weekStr] = dateValue.split(' Week ');
-            const [year, month] = yearMonth.split('-').map(Number);
-            const week = parseInt(weekStr);
-            
-            const weekStart = (week - 1) * 7 + 1;
-            const weekEnd = week * 7;
-            
-            const startDate = new Date(year, month - 1, weekStart, 0, 0, 0, 0);
-            const endDate = new Date(year, month - 1, weekEnd, 23, 59, 59, 999);
-            
-            where.startTime = {
-              gte: startDate,
-              lte: endDate
-            };
-          }
-          break;
-          
-        case "monthly":
-          if (dateValue) {
-            const [year, month] = dateValue.split('-').map(Number);
-            const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-            const endDate = new Date(year, month, 0, 23, 59, 59, 999);
-            
-            where.startTime = {
-              gte: startDate,
-              lte: endDate
-            };
-          }
-          break;
-      }
-    }
+    // Build filter
+    const dateFilter = buildDateFilter(dateType, dateValue);
+    const where = { ...dateFilter };
 
     // Filter by driver name
     if (driverName && driverName !== "Select Driver" && driverName !== "No drivers available") {
@@ -739,32 +907,42 @@ app.get("/api/trips/filter", authMiddleware, async (req, res) => {
       };
     }
 
-    console.log("📋 Where clause:", JSON.stringify(where, null, 2));
+    console.log("📋 Trip filter where:", JSON.stringify(where, null, 2));
 
-    // Get trips with includes
+    // Get trips dengan include yang benar
     const trips = await prisma.trip.findMany({
       where,
       include: {
         driver: true,
-        vehicle: {
-          include: {
-            positions: {
-              orderBy: { timestamp: "desc" },
-              take: 1
-            }
-          }
-        },
+        vehicle: true,
         origin: true,
-        destination: true
+        destination: true,
+        positions: {
+          orderBy: { timestamp: "desc" },
+          take: 1
+        }
       },
-      orderBy: { startTime: "desc" }
+      orderBy: [
+        { status: "desc" }, // ON_TRIP first
+        { startTime: "desc" }
+      ]
     });
 
     console.log(`✅ Found ${trips.length} trips`);
 
-    res.json({
-      success: true,
-      trips: trips.map(trip => ({
+    // Transform data dengan speed yang benar
+    const transformedTrips = trips.map(trip => {
+      const latestPosition = trip.positions?.[0];
+      
+      // Prioritaskan avgSpeed dari database, lalu dari latest position
+      let speed = 0;
+      if (trip.avgSpeed !== null && trip.avgSpeed !== undefined) {
+        speed = trip.avgSpeed;
+      } else if (latestPosition?.speed) {
+        speed = latestPosition.speed;
+      }
+
+      return {
         id: trip.id,
         driverId: trip.driverId,
         vehicleId: trip.vehicleId,
@@ -775,15 +953,18 @@ app.get("/api/trips/filter", authMiddleware, async (req, res) => {
         endTime: trip.endTime,
         avgSpeed: trip.avgSpeed,
         driver: trip.driver,
-        vehicle: {
-          id: trip.vehicle.id,
-          plate: trip.vehicle.plate,
-          type: trip.vehicle.type,
-          positions: trip.vehicle.positions || []
-        },
+        vehicle: trip.vehicle,
         origin: trip.origin,
-        destination: trip.destination
-      })),
+        destination: trip.destination,
+        positions: trip.positions,
+        latestPosition: latestPosition,
+        displaySpeed: speed
+      };
+    });
+
+    res.json({
+      success: true,
+      trips: transformedTrips,
       count: trips.length
     });
 
@@ -798,192 +979,28 @@ app.get("/api/trips/filter", authMiddleware, async (req, res) => {
   }
 });
 
-// GET filter options berdasarkan tanggal - REVISI
-app.get("/api/filter/options", authMiddleware, async (req, res) => {
-  try {
-    const { dateType, dateValue } = req.query;
-
-    console.log("🔍 Fetching filter options for:", { dateType, dateValue });
-
-    let where = {};
-
-    // Hanya filter tanggal jika bukan "current" dan ada dateValue
-    if (dateType && dateType !== "current" && dateValue) {
-      let startDate, endDate;
-
-      switch (dateType) {
-        case "daily":
-          const dailyDate = new Date(dateValue);
-          startDate = new Date(dailyDate.setHours(0, 0, 0, 0));
-          endDate = new Date(dailyDate.setHours(23, 59, 59, 999));
-          where.startTime = {
-            gte: startDate,
-            lte: endDate
-          };
-          break;
-
-        case "weekly":
-          if (dateValue.includes('Week')) {
-            const [yearMonth, weekStr] = dateValue.split(' Week ');
-            const [year, month] = yearMonth.split('-').map(Number);
-            const week = parseInt(weekStr);
-            
-            const weekStart = (week - 1) * 7 + 1;
-            const weekEnd = week * 7;
-            
-            startDate = new Date(year, month - 1, weekStart, 0, 0, 0, 0);
-            endDate = new Date(year, month - 1, weekEnd, 23, 59, 59, 999);
-            
-            where.startTime = {
-              gte: startDate,
-              lte: endDate
-            };
-          }
-          break;
-
-        case "monthly":
-          const [year, month] = dateValue.split('-').map(Number);
-          startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-          endDate = new Date(year, month, 0, 23, 59, 59, 999);
-          
-          where.startTime = {
-            gte: startDate,
-            lte: endDate
-          };
-          break;
-      }
-    }
-
-    console.log("📅 Date filter for options:", JSON.stringify(where, null, 2));
-
-    // Get trips with includes
-    const trips = await prisma.trip.findMany({
-      where,
-      include: {
-        driver: true,
-        origin: true,
-        destination: true
-      },
-      distinct: ['driverId', 'originId', 'destinationId']
-    });
-
-    console.log(`📊 Found ${trips.length} trips for options`);
-
-    // Extract unique values
-    const driversMap = new Map();
-    const originsMap = new Map();
-    const destinationsMap = new Map();
-
-    trips.forEach(trip => {
-      if (trip.driver) {
-        driversMap.set(trip.driver.id, trip.driver);
-      }
-      if (trip.origin) {
-        originsMap.set(trip.origin.id, trip.origin);
-      }
-      if (trip.destination) {
-        destinationsMap.set(trip.destination.id, trip.destination);
-      }
-    });
-
-    const drivers = Array.from(driversMap.values());
-    const origins = Array.from(originsMap.values());
-    const destinations = Array.from(destinationsMap.values());
-
-    console.log(`👤 Drivers: ${drivers.length}, 📍 Origins: ${origins.length}, 🎯 Destinations: ${destinations.length}`);
-
-    // Jika tidak ada trip, kembalikan array kosong
-    res.json({
-      success: true,
-      drivers: drivers.map(d => ({
-        id: d.id,
-        name: d.name,
-        email: d.email || null
-      })),
-      origins: origins.map(o => ({
-        id: o.id,
-        name: o.name,
-        city: o.city
-      })),
-      destinations: destinations.map(d => ({
-        id: d.id,
-        name: d.name,
-        city: d.city
-      }))
-    });
-
-  } catch (err) {
-    console.error("❌ Error getting filter options:", err);
-    res.status(500).json({ 
-      success: false, 
-      error: err.message,
-      drivers: [],
-      origins: [],
-      destinations: []
-    });
-  }
-});
-
-// GET dashboard stats dengan filter - REVISI
+// GET dashboard stats dengan filter yang benar - VERSION 2
 app.get("/api/dashboard/stats", async (req, res) => {
   try {
     const { dateType, dateValue, driver, route, departureRoute } = req.query;
     
     console.log("📈 Stats filter:", { dateType, dateValue, driver, route, departureRoute });
 
-    // Build filter for trips
-    const where = {};
-    
-    // Filter by date
-    if (dateType && dateType !== "current" && dateValue) {
-      let startDate, endDate;
+    // Build filter menggunakan fungsi buildDateFilter yang sudah ada
+    const dateFilter = buildDateFilter(dateType, dateValue);
+    const where = { ...dateFilter };
 
-      switch (dateType) {
-        case "daily":
-          const dailyDate = new Date(dateValue);
-          startDate = new Date(dailyDate.setHours(0, 0, 0, 0));
-          endDate = new Date(dailyDate.setHours(23, 59, 59, 999));
-          where.startTime = {
-            gte: startDate,
-            lte: endDate
-          };
-          break;
+    // Helper function untuk parse nama (Name (City))
+    const parseNameFromDisplay = (displayName) => {
+      if (!displayName) return null;
+      // Format: "Name (City)" atau hanya "Name"
+      const match = displayName.match(/(.*?)(?:\s*\((.*)\))?$/);
+      return match ? match[1].trim() : displayName;
+    };
 
-        case "weekly":
-          if (dateValue.includes('Week')) {
-            const [yearMonth, weekStr] = dateValue.split(' Week ');
-            const [year, month] = yearMonth.split('-').map(Number);
-            const week = parseInt(weekStr);
-            
-            const weekStart = (week - 1) * 7 + 1;
-            const weekEnd = week * 7;
-            
-            startDate = new Date(year, month - 1, weekStart, 0, 0, 0, 0);
-            endDate = new Date(year, month - 1, weekEnd, 23, 59, 59, 999);
-            
-            where.startTime = {
-              gte: startDate,
-              lte: endDate
-            };
-          }
-          break;
-
-        case "monthly":
-          const [year, month] = dateValue.split('-').map(Number);
-          startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-          endDate = new Date(year, month, 0, 23, 59, 59, 999);
-          
-          where.startTime = {
-            gte: startDate,
-            lte: endDate
-          };
-          break;
-      }
-    }
-    
     // Filter by driver
     if (driver && driver !== "Select Driver" && driver !== "No drivers available") {
-      const cleanDriver = driver.split('(')[0].trim();
+      const cleanDriver = parseNameFromDisplay(driver);
       where.driver = {
         name: {
           contains: cleanDriver,
@@ -994,7 +1011,7 @@ app.get("/api/dashboard/stats", async (req, res) => {
     
     // Filter by route (origin)
     if (route && route !== "Select Origin" && route !== "No origins available") {
-      const cleanRoute = route.split('(')[0].trim();
+      const cleanRoute = parseNameFromDisplay(route);
       where.origin = {
         name: {
           contains: cleanRoute,
@@ -1005,7 +1022,7 @@ app.get("/api/dashboard/stats", async (req, res) => {
     
     // Filter by departure (destination)
     if (departureRoute && departureRoute !== "Select Departure" && departureRoute !== "No departures available") {
-      const cleanDeparture = departureRoute.split('(')[0].trim();
+      const cleanDeparture = parseNameFromDisplay(departureRoute);
       where.destination = {
         name: {
           contains: cleanDeparture,
@@ -1014,23 +1031,104 @@ app.get("/api/dashboard/stats", async (req, res) => {
       };
     }
 
-    // Get trips with filter
+    console.log("📋 Stats where clause:", JSON.stringify(where, null, 2));
+
+    // 1. GET BASELINE DATA GLOBAL (semua trip COMPLETED tanpa filter)
+    const baselineTrips = await prisma.trip.findMany({
+      where: {
+        status: "COMPLETED",
+        endTime: { not: null }
+      },
+      select: {
+        startTime: true,
+        endTime: true,
+        originId: true,
+        destinationId: true
+      }
+    });
+
+    // Hitung baseline global
+    let baselineTotalDuration = 0;
+    let baselineCount = 0;
+    const routeBaselines = new Map(); // key: "originId-destinationId"
+
+    baselineTrips.forEach(trip => {
+      if (trip.startTime && trip.endTime) {
+        const start = new Date(trip.startTime);
+        const end = new Date(trip.endTime);
+        const duration = (end - start) / (1000 * 60);
+        
+        baselineTotalDuration += duration;
+        baselineCount++;
+        
+        // Simpan per rute
+        if (trip.originId && trip.destinationId) {
+          const routeKey = `${trip.originId}-${trip.destinationId}`;
+          if (!routeBaselines.has(routeKey)) {
+            routeBaselines.set(routeKey, []);
+          }
+          routeBaselines.get(routeKey).push(duration);
+        }
+      }
+    });
+
+    // Hitung baseline rata-rata (global dan per rute)
+    const globalBaselineDuration = baselineCount > 0 
+      ? baselineTotalDuration / baselineCount 
+      : 120; // Default 2 jam jika tidak ada data global
+
+    // Hitung rata-rata per rute
+    const routeAverages = new Map();
+    routeBaselines.forEach((durations, routeKey) => {
+      const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+      routeAverages.set(routeKey, avg);
+    });
+
+    console.log(`🌍 Global baseline: ${Math.round(globalBaselineDuration)} minutes`);
+    console.log(`📊 Route-specific baselines: ${routeAverages.size} routes`);
+
+    // 2. GET FILTERED TRIPS
     const trips = await prisma.trip.findMany({
       where,
       include: {
-        driver: true,
-        vehicle: {
-          include: {
-            positions: {
-              orderBy: { timestamp: "desc" },
-              take: 1
-            }
+        driver: {
+          select: {
+            id: true,
+            name: true
           }
         },
-        origin: true,
-        destination: true
-      }
+        vehicle: {
+          select: {
+            id: true,
+            plate: true
+          }
+        },
+        origin: {
+          select: {
+            id: true,
+            name: true,
+            city: true
+          }
+        },
+        destination: {
+          select: {
+            id: true,
+            name: true,
+            city: true
+          }
+        },
+        positions: {
+          select: {
+            speed: true
+          },
+          orderBy: { timestamp: "desc" },
+          take: 1
+        }
+      },
+      orderBy: { startTime: "desc" }
     });
+
+    console.log(`✅ Found ${trips.length} trips for stats`);
 
     // Calculate stats
     let idle = 0;
@@ -1046,63 +1144,108 @@ app.get("/api/dashboard/stats", async (req, res) => {
     const vehicleSet = new Set();
     const routeSet = new Set();
 
+    // FIRST PASS: Collect basic stats
     trips.forEach(trip => {
       // Count by status
       if (trip.status === "ON_TRIP") {
         onTrip++;
       } else if (trip.status === "COMPLETED") {
         completed++;
-        
-        // Check if on time (dummy logic)
-        if (trip.endTime) {
-          const endTime = new Date(trip.endTime);
-          const scheduledTime = new Date(trip.startTime);
-          scheduledTime.setHours(scheduledTime.getHours() + 2); // Assume 2 hours scheduled
-          
-          if (endTime <= scheduledTime) {
-            onTime++;
-          } else {
-            delay++;
-          }
-        }
-      } else {
-        idle++;
       }
       
-      // Calculate duration for completed trips
-      if (trip.status === "COMPLETED" && trip.startTime && trip.endTime) {
-        const start = new Date(trip.startTime);
-        const end = new Date(trip.endTime);
-        const duration = (end - start) / (1000 * 60); // in minutes
-        durations.push(duration);
+      // Get speed
+      let speed = 0;
+      if (trip.avgSpeed !== null && trip.avgSpeed !== undefined) {
+        speed = trip.avgSpeed;
+      } else if (trip.positions?.[0]?.speed) {
+        speed = trip.positions[0].speed;
       }
       
-      // Get speed from latest position
-      if (trip.vehicle?.positions?.[0]?.speed) {
-        speeds.push(trip.vehicle.positions[0].speed);
-      } else if (trip.avgSpeed) {
-        speeds.push(trip.avgSpeed);
+      if (speed > 0) {
+        speeds.push(speed);
       }
       
       // Collect unique counts
-      if (trip.driver) driverSet.add(trip.driver.id);
-      if (trip.vehicle) vehicleSet.add(trip.vehicle.id);
+      if (trip.driver?.id) driverSet.add(trip.driver.id);
+      if (trip.vehicle?.id) vehicleSet.add(trip.vehicle.id);
       if (trip.origin && trip.destination) {
-        routeSet.add(`${trip.origin.id}-${trip.destination.id}`);
+        const routeKey = `${trip.origin.name}-${trip.destination.name}`;
+        routeSet.add(routeKey);
+      }
+    });
+
+    // SECOND PASS: Calculate performance (mutually exclusive)
+    trips.forEach(trip => {
+      if (trip.status === "COMPLETED" && trip.startTime && trip.endTime) {
+        const start = new Date(trip.startTime);
+        const end = new Date(trip.endTime);
+        const duration = (end - start) / (1000 * 60);
+        
+        // Hitung untuk rata-rata
+        durations.push(duration);
+        
+        // Tentukan baseline yang tepat:
+        // 1. Coba gunakan route-specific baseline jika ada
+        // 2. Jika tidak, gunakan global baseline
+        let baselineDuration = globalBaselineDuration;
+        
+        if (trip.originId && trip.destinationId) {
+          const routeKey = `${trip.originId}-${trip.destinationId}`;
+          if (routeAverages.has(routeKey)) {
+            baselineDuration = routeAverages.get(routeKey);
+          }
+        }
+        
+        // LOGIKA MUTUALLY EXCLUSIVE dengan baseline yang konsisten
+        const lowerBound = baselineDuration * 0.9;  // 90%
+        const upperBound = baselineDuration * 1.1;  // 110%
+        
+        if (duration < lowerBound) {
+          early++;      // HANYA Early
+        } else if (duration <= upperBound) {
+          onTime++;     // HANYA On Time
+        } else {
+          delay++;      // HANYA Delay
+        }
+        
+        // Log untuk debugging
+        console.log(`🔍 Trip ${trip.id}: ${duration.toFixed(0)}min vs baseline ${baselineDuration.toFixed(0)}min (${lowerBound.toFixed(0)}-${upperBound.toFixed(0)}) -> ${duration < lowerBound ? 'Early' : duration <= upperBound ? 'On Time' : 'Delay'}`);
       }
     });
 
     // Calculate averages
     const avgTripDuration = durations.length > 0 
-      ? Math.round(durations.reduce((a, b) => a + b) / durations.length)
+      ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
       : 0;
       
     const avgSpeed = speeds.length > 0
-      ? Math.round(speeds.reduce((a, b) => a + b) / speeds.length)
+      ? Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length)
       : 0;
 
-    // Early arrivals (dummy calculation)
-    early = Math.floor(completed * 0.3);
+    // Verifikasi konsistensi
+    const performanceTotal = early + onTime + delay;
+    if (performanceTotal !== completed) {
+      console.warn(`⚠️ Performance sum mismatch! Completed: ${completed}, Sum: ${performanceTotal}`);
+      // Adjust onTime to make them equal
+      onTime = completed - early - delay;
+    }
+
+    console.log("📊 Final stats:", {
+      totalTrips: trips.length,
+      idle,
+      onTrip,
+      completed,
+      onTime,
+      delay,
+      early,
+      performanceSum: early + onTime + delay,
+      avgTripDuration,
+      avgSpeed,
+      uniqueDrivers: driverSet.size,
+      uniqueVehicles: vehicleSet.size,
+      uniqueRoutes: routeSet.size,
+      baselineUsed: `Global: ${Math.round(globalBaselineDuration)}min, Routes: ${routeAverages.size}`
+    });
 
     res.json({
       success: true,
@@ -1142,7 +1285,6 @@ app.get("/api/dashboard/stats", async (req, res) => {
     });
   }
 });
-
 /* ======================================================
    START SERVER
 ====================================================== */
