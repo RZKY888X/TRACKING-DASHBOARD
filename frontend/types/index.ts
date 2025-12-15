@@ -40,11 +40,12 @@ export interface VehicleStats {
 
 
 // ===============================
-// ROUTE DATA (OPTIONAL)
+// FILTER OPTIONS
 // ===============================
-export interface RouteData {
-  from: string;
-  to: string;
+export interface FilterOptions {
+  drivers: Array<{ id: number; name: string; email?: string }>;
+  origins: Array<{ id: number; name: string; city: string }>;
+  destinations: Array<{ id: number; name: string; city: string }>;
 }
 
 
@@ -60,6 +61,63 @@ export interface Filters {
   departureRoute?: string;
 }
 
+
+// ===============================
+// TRIP DATA (for DataTable)
+// ===============================
+export interface Trip {
+  id: number;
+  driverId: number;
+  vehicleId: number;
+  originId: number;
+  destinationId?: number;
+  status: "ON_TRIP" | "COMPLETED";
+  startTime: string;
+  endTime?: string;
+  avgSpeed?: number;
+  driver: {
+    id: number;
+    name: string;
+    createdAt: string;
+  };
+  vehicle: {
+    id: number;
+    plate: string;
+    type?: string;
+    positions: any[];
+  };
+  origin: {
+    id: number;
+    name: string;
+    city: string;
+    latitude: number;
+    longitude: number;
+  };
+  destination?: {
+    id: number;
+    name: string;
+    city: string;
+    latitude: number;
+    longitude: number;
+  };
+  positions: any[];
+  latestPosition?: {
+    id: number;
+    latitude: number;
+    longitude: number;
+    speed?: number;
+    timestamp: string;
+  };
+}
+
+// ===============================
+// FILTER RESPONSE
+// ===============================
+export interface FilterResponse {
+  success: boolean;
+  trips: Trip[];
+  count: number;
+}
 
 
 // ===============================

@@ -8,129 +8,118 @@ import StatsCards from "@/components/StatsCards";
 import DataTable from "@/components/DataTable";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { UserProfile } from "@/components/UserProfile";
-import { Filters, VehicleData, VehiclePosition, TripData } from "@/types";
+import { Filters, VehiclePosition } from "@/types";
 
 const VehicleMap = dynamic(() => import("@/components/VehicleMap"), {
   ssr: false,
+  loading: () => (
+    <div className="h-[400px] bg-[#161B22] rounded-lg flex items-center justify-center">
+      <div className="text-cyan-400">Loading map...</div>
+    </div>
+  ),
 });
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export default function HomePage() {
   const { data: session } = useSession();
-  const [trips, setTrips] = useState<TripData[]>([]);
-  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>("");
+
+  const [vehiclePositions, setVehiclePositions] = useState<VehiclePosition[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const [filters, setFilters] = useState<Filters>({
     dateType: "current",
-    dateValue: undefined,
+    dateValue: "",
     driver: "",
     route: "",
-    departure: "",
+    departureRoute: "",
   });
 
   const [draftFilters, setDraftFilters] = useState<Filters>(filters);
 
-  const handleSubmitFilter = () => setFilters(draftFilters);
+  const handleSubmitFilter = () => {
+    console.log("✅ Applying filters:", draftFilters);
+    setFilters(draftFilters);
+  };
 
   const handleClearFilters = () => {
+    console.log("🧹 Clearing filters");
     const reset: Filters = {
       dateType: "current",
-      dateValue: undefined,
+      dateValue: "",
       driver: "",
       route: "",
-      departure: "",
+      departureRoute: "",
     };
     setDraftFilters(reset);
     setFilters(reset);
   };
 
-  // ===== Fetch trips baru (start) =====
-  const fetchStartTrips = async (): Promise<TripData[]> => {
-    const res = await fetch(`${API_URL}/api/trips/start`, {
-      headers: { Authorization: `Bearer ${session?.accessToken}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch start trips");
-    return res.json();
-  };
-
-  // ===== Fetch ongoing/completed trips & vehicle positions =====
-  const fetchMapData = async (): Promise<{ vehicles: VehicleData[] }> => {
-    const res = await fetch(`${API_URL}/api/dashboard/map`, {
-      headers: { Authorization: `Bearer ${session?.accessToken}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch map data");
-    return res.json();
-  };
-
-  // ===== Combine trips for DataTable =====
-  const loadData = async () => {
-    if (!session?.accessToken) return;
-    setLoading(true);
-    setError("");
-    try {
-      const [startTripsData, mapData] = await Promise.all([
-        fetchStartTrips(),
-        fetchMapData(),
-      ]);
-
-      const allTrips: TripData[] = startTripsData.map((trip) => {
-        const matched = mapData.vehicles
-          .flatMap((v) => v.trips)
-          .find((t) => t.id === trip.id);
-
-        return {
-          id: trip.id,
-          driver: trip.driver,
-          vehicle: trip.vehicle,
-          route: `${trip.origin?.city ?? "-"} → ${matched?.destination?.city ?? "-"}`,
-          start: trip.createdAt,
-          end: matched?.endTime ?? "-",
-          avgSpeed: matched?.avgSpeed ?? "-",
-          status: matched?.status ?? "ON_TRIP",
-          positions: matched?.vehicle?.positions ?? trip.vehicle?.positions ?? [],
-        };
-      });
-
-      setTrips(allTrips);
-      setVehicles(mapData.vehicles);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message ?? "Failed to fetch data");
-      setTrips([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Load vehicle positions untuk map
   useEffect(() => {
-    loadData();
-  }, [filters, session?.accessToken]);
+    const loadVehiclePositions = async () => {
+      try {
+        setLoading(true);
+        
+        const res = await fetch(`${API_URL}/api/dashboard/map`, {
+          headers: session?.accessToken ? {
+            Authorization: `Bearer ${session.accessToken}`,
+          } : {},
+        });
 
-  // ===== Vehicle positions for Map =====
-  const vehiclePositions: VehiclePosition[] = vehicles.flatMap((v) =>
-    v.positions?.map((p) => ({
-      id: v.id,
-      vehicleId: v.id,
-      name: v.name,
-      driver: v.trips?.[0]?.driver?.name ?? "Unknown",
-      route: `${v.trips?.[0]?.origin?.city ?? "-"} → ${v.trips?.[0]?.destination?.city ?? "-"}`,
-      latitude: p.latitude,
-      longitude: p.longitude,
-      speed: p.speed,
-      timestamp: p.timestamp,
-      status: v.trips?.[0]?.status ?? "Idle",
-      startTime: v.trips?.[0]?.createdAt,
-      endTime: v.trips?.[0]?.endTime,
-    })) ?? []
-  );
+        if (!res.ok) throw new Error("Failed to load vehicle positions");
 
-  if (loading) {
+        const data = await res.json();
+        
+        // Transform to VehiclePosition format
+        const positions: VehiclePosition[] = [];
+        
+        if (data.vehicles) {
+          data.vehicles.forEach((vehicle: any) => {
+            if (vehicle.positions && vehicle.positions.length > 0) {
+              const latestPos = vehicle.positions[0];
+              positions.push({
+                id: latestPos.id,
+                vehicleId: vehicle.id,
+                name: vehicle.plate,
+                driver: "Unknown",
+                route: "No Active Trip",
+                latitude: latestPos.latitude,
+                longitude: latestPos.longitude,
+                speed: latestPos.speed || 0,
+                timestamp: latestPos.timestamp,
+                status: "IDLE",
+                startTime: null,
+                endTime: null,
+              });
+            }
+          });
+        }
+
+        setVehiclePositions(positions);
+      } catch (err: any) {
+        console.error("❌ Error loading vehicle positions:", err);
+        setError("Failed to load vehicle positions");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadVehiclePositions();
+    const interval = setInterval(loadVehiclePositions, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
+  }, [session?.accessToken]);
+
+  if (loading && !filters.dateType) {
     return (
       <ProtectedPage requiredRole="VIEWER">
-        <main className="p-6 text-cyan-400">Loading dashboard...</main>
+        <main className="p-6 text-cyan-400">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400"></div>
+            <span className="ml-3">Loading dashboard...</span>
+          </div>
+        </main>
       </ProtectedPage>
     );
   }
@@ -140,47 +129,91 @@ export default function HomePage() {
       <main className="flex-1 p-6 space-y-6">
         {/* Header */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-xl p-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-cyan-400">
-            Vehicle Operation Management System
-          </h1>
+          <div>
+            <h1 className="text-2xl font-bold text-cyan-400">
+              Vehicle Operation Management System
+            </h1>
+            <p className="text-gray-400 mt-1">
+              Real-time tracking and trip management
+            </p>
+          </div>
           <UserProfile />
         </div>
 
         {/* Filters */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg p-4">
-          <div className="flex justify-between mb-4">
+          <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-cyan-400">Filters</h2>
-            <div className="space-x-2">
+            <div className="flex space-x-2">
               <button
                 onClick={handleClearFilters}
-                className="px-4 py-2 bg-red-900/30 text-red-300 rounded"
+                className="px-4 py-2 bg-red-900/30 text-red-300 rounded-lg hover:bg-red-900/50 transition-colors flex items-center"
               >
-                Clear
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear All
               </button>
               <button
                 onClick={handleSubmitFilter}
-                className="px-4 py-2 bg-cyan-900/30 text-cyan-300 rounded"
+                className="px-4 py-2 bg-cyan-900/30 text-cyan-300 rounded-lg hover:bg-cyan-900/50 transition-colors flex items-center"
               >
-                Submit
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Apply Filters
               </button>
             </div>
           </div>
-          <FilterSection filters={draftFilters} onFilterChange={setDraftFilters} />
+
+          <FilterSection
+            filters={draftFilters}
+            onFilterChange={setDraftFilters}
+          />
         </div>
 
-        {/* Stats Cards */}
+        {/* Stats */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg p-4">
-          <StatsCards data={trips} />
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-cyan-400">Overview Statistics</h3>
+            {filters.dateType && (
+              <span className="text-sm text-cyan-300 bg-cyan-900/20 px-3 py-1 rounded-full">
+                {filters.dateType === "current" 
+                  ? "All Data" 
+                  : filters.dateType === "daily" 
+                    ? `Daily: ${new Date(filters.dateValue || '').toLocaleDateString('id-ID')}`
+                    : filters.dateType === "weekly"
+                      ? `Weekly: ${filters.dateValue}`
+                      : `Monthly: ${filters.dateValue}`
+                }
+              </span>
+            )}
+          </div>
+          <StatsCards filters={filters} />
         </div>
 
-        {/* Vehicle Map */}
+        {/* Map */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg p-4">
-          <VehicleMap positions={vehiclePositions} />
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-cyan-400">Vehicle Locations</h3>
+            <p className="text-gray-400 text-sm">Real-time vehicle positions on map</p>
+          </div>
+          {error ? (
+            <div className="text-red-400 p-4 bg-red-900/20 rounded-lg">
+              {error}
+            </div>
+          ) : (
+            <VehicleMap positions={vehiclePositions} />
+          )}
         </div>
 
-        {/* Data Table */}
+        {/* Table */}
         <div className="bg-[#0f1729] border border-cyan-400/30 rounded-lg p-4">
-          {error ? <div className="text-red-400">{error}</div> : <DataTable data={trips} />}
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-cyan-400">Trip Details</h3>
+            <p className="text-gray-400 text-sm">Filtered trip information</p>
+          </div>
+          <DataTable filters={filters} />
         </div>
       </main>
     </ProtectedPage>

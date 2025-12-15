@@ -9,16 +9,16 @@ async function main() {
   // ============================================
   // 1️⃣ CLEAR EXISTING DATA
   // ============================================
-  await prisma.assignment.deleteMany();
-  await prisma.status.deleteMany();
-  await prisma.position.deleteMany();
-  await prisma.vehicle.deleteMany();
-  await prisma.driver.deleteMany();
-  await prisma.route.deleteMany();
-  await prisma.origin.deleteMany();
-  await prisma.departure.deleteMany();
-  await prisma.user.deleteMany();
-  console.log("🧹 Database cleared.");
+  // await prisma.assignment.deleteMany();
+  // await prisma.status.deleteMany();
+  // await prisma.position.deleteMany();
+  // await prisma.vehicle.deleteMany();
+  // await prisma.driver.deleteMany();
+  // await prisma.route.deleteMany();
+  // await prisma.origin.deleteMany();
+  // await prisma.departure.deleteMany();
+  // await prisma.user.deleteMany();
+  // console.log("🧹 Database cleared.");
 
   // ============================================
   // 2️⃣ USER SEED
@@ -43,35 +43,35 @@ async function main() {
   // ============================================
   // 3️⃣ DRIVERS & VEHICLES
   // ============================================
-  const driverNames = ["John Doe", "Jane Smith", "Bob Johnson"];
-  for (const name of driverNames) {
-    await prisma.driver.create({ data: { name } });
-  }
+  // const driverNames = ["John Doe", "Jane Smith", "Bob Johnson"];
+  // for (const name of driverNames) {
+  //   await prisma.driver.create({ data: { name } });
+  // }
 
-  const vehiclesData = [
-    { name: "B 3420 ADZ", driver: "John Doe", route: null },
-    { name: "B 4429 JJA", driver: "Jane Smith", route: null },
-    { name: "B 4278 AKB", driver: "Bob Johnson", route: null },
-  ];
+  // const vehiclesData = [
+  //   { name: "B 3420 ADZ", driver: "John Doe", route: null },
+  //   { name: "B 4429 JJA", driver: "Jane Smith", route: null },
+  //   { name: "B 4278 AKB", driver: "Bob Johnson", route: null },
+  // ];
 
-  for (const v of vehiclesData) {
-    await prisma.vehicle.create({ data: v });
-  }
+  // for (const v of vehiclesData) {
+  //   await prisma.vehicle.create({ data: v });
+  // }
 
-  console.log("🚚 Vehicles & Drivers inserted.");
+  // console.log("🚚 Vehicles & Drivers inserted.");
 
   // ============================================
   // 4️⃣ ORIGIN & DEPARTURE SEED
   // ============================================
-  const cities = [
-    "Jakarta", "Bandung", "Surabaya", "Malang", "Yogyakarta",
-    "Semarang", "Medan", "Palembang", "Balikpapan", "Denpasar"
-  ];
+  // const cities = [
+  //   "Jakarta", "Bandung", "Surabaya", "Malang", "Yogyakarta",
+  //   "Semarang", "Medan", "Palembang", "Balikpapan", "Denpasar"
+  // ];
 
-  for (const city of cities) {
-    await prisma.origin.create({ data: { destination: city } });
-    await prisma.departure.create({ data: { destination: city } });
-  }
+  // for (const city of cities) {
+  //   await prisma.origin.create({ data: { destination: city } });
+  //   await prisma.departure.create({ data: { destination: city } });
+  // }
 
   console.log("🛣️ Origins & Departures inserted.");
 
