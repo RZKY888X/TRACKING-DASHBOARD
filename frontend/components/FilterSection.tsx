@@ -1,3 +1,4 @@
+// frontend/components/FilterSection.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";

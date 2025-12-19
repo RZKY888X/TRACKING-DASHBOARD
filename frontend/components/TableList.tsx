@@ -1,3 +1,4 @@
+// frontend/components/TableList.tsx
 export default function TableList({ columns, data }) {
   return (
     <div className="overflow-hidden rounded-lg border border-cyan-500/20">
