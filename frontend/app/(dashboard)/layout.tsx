@@ -2,8 +2,7 @@
 "use client";
 
 import { Sidebar } from "@/components/layout/Sidebar";
-import { Header } from "@/components/layout/Header";
-
+import { HeaderDashboard } from "./dashboard/components/HeaderDashboard";
 export default function DashboardLayout({
   children,
 }: {
@@ -17,7 +16,7 @@ export default function DashboardLayout({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header - Fixed */}
-        <Header />
+        <HeaderDashboard />
         
         {/* Page Content - Scrollable, NO PADDING HERE */}
         <main className="flex-1 overflow-y-auto">
