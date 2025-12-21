@@ -148,3 +148,34 @@ export interface LoRaWANPayload {
   timestamp: number;
   batteryLevel?: number;
 }
+
+// ===============================
+// DRIVER DASHBOARD (DUMMY DATA)
+// ===============================
+
+export interface DriverStat {
+  title: string;
+  value: number;
+  subtitle?: string;
+  color: "blue" | "green" | "yellow" | "indigo";
+}
+
+export interface TopDriver {
+  name: string;
+  trips: number;
+}
+
+export interface DriverPerformance {
+  onTime: number;
+  delayed: number;
+}
+
+export interface DriverTableItem {
+  id: number;
+  name: string;
+  rfid: string;
+  totalTrips: number;
+  avgDuration: string;
+  status: "ACTIVE" | "ON_TRIP";
+  performance: "EXCELLENT" | "GOOD" | "AVERAGE";
+}
