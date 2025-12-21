@@ -469,14 +469,17 @@ app.get("/api/drivers", async (req, res) => {
 // POST driver
 app.post("/api/drivers", async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, phone } = req.body;
     if (!name) return res.status(400).json({ error: "Driver name required" });
 
-    res.json(await prisma.driver.create({ data: { name } }));
+    res.json(await prisma.driver.create({
+      data: { name, phone }
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // GET vehicles
 app.get("/api/vehicles", async (req, res) => {
@@ -490,42 +493,22 @@ app.get("/api/vehicles", async (req, res) => {
 // POST vehicle
 app.post("/api/vehicles", async (req, res) => {
   try {
-    const { plate, type } = req.body;
+    const { plate, type, deviceId } = req.body;
     if (!plate) return res.status(400).json({ error: "Plate required" });
 
-    res.json(await prisma.vehicle.create({ data: { plate, type } }));
+    res.json(await prisma.vehicle.create({
+      data: { plate, type, deviceId }
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
-// GET cities
-app.get("/api/routes", async (req, res) => {
-  try {
-    res.json(await prisma.warehouse.findMany({ orderBy: { city: "asc" } }));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST city
-app.post("/api/routes", async (req, res) => {
-  try {
-    const { city } = req.body;
-    if (!city) return res.status(400).json({ error: "City required" });
-
-    res.json(await prisma.warehouse.create({ data: { city } }));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+ 
 
 // GET warehouses
 app.get("/api/warehouses", async (req, res) => {
   try {
-    res.json(await prisma.warehouse.findMany({
-      orderBy: { name: "asc" }
-    }));
+    res.json(await prisma.warehouse.findMany({ orderBy: { name: "asc" } }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -535,40 +518,132 @@ app.get("/api/warehouses", async (req, res) => {
 app.post("/api/warehouses", async (req, res) => {
   try {
     const { name, city, latitude, longitude } = req.body;
-
-    if (!name || !city || !latitude || !longitude)
+    if (!name || !city || latitude == null || longitude == null)
       return res.status(400).json({ error: "Incomplete warehouse data" });
 
-    const warehouse = await prisma.warehouse.create({
+    res.json(await prisma.warehouse.create({
       data: { name, city, latitude, longitude }
+    }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST order
+app.post("/api/orders", async (req, res) => {
+  try {
+    const { orderNumber, originId, destinationId } = req.body;
+
+    if (!orderNumber || !originId || !destinationId)
+      return res.status(400).json({ error: "Incomplete order data" });
+
+    res.json(await prisma.order.create({
+      data: { orderNumber, originId, destinationId }
+    }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET orders
+app.get("/api/orders", async (req, res) => {
+  try {
+    res.json(await prisma.order.findMany({
+      include: { origin: true, destination: true }
+    }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/assignments", async (req, res) => {
+  try {
+    const driverId = parseInt(req.body.driverId);
+    const vehicleId = parseInt(req.body.vehicleId);
+    const originId = parseInt(req.body.originId);
+    const destinationId = parseInt(req.body.destinationId);
+
+    if (
+      isNaN(driverId) ||
+      isNaN(vehicleId) ||
+      isNaN(originId) ||
+      isNaN(destinationId)
+    ) {
+      return res.status(400).json({ error: "Invalid assignment data" });
+    }
+
+    const assignment = await prisma.assignment.create({
+      data: {
+        driverId,
+        vehicleId,
+        originId,
+        destinationId,
+        status: "PENDING"
+      }
     });
 
-    res.json(warehouse);
+    res.json(assignment);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 
-// POST /api/trips/start
+// GET assignments
+app.get("/api/assignments", async (req, res) => {
+  try {
+    res.json(await prisma.assignment.findMany({
+      include: {
+        order: { include: { origin: true, destination: true } },
+        driver: true,
+        vehicle: true
+      }
+    }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 app.post("/api/trips/start", async (req, res) => {
   try {
-    const { driverId, vehicleId, originId } = req.body;
+    const assignmentId = parseInt(req.body.assignmentId);
 
-    // Cek trip aktif driver
-    const active = await prisma.trip.findFirst({
-      where: { driverId, status: "ON_TRIP" }
+    if (isNaN(assignmentId)) {
+      return res.status(400).json({ error: "Invalid assignment id" });
+    }
+
+    const assignment = await prisma.assignment.findUnique({
+      where: { id: assignmentId }
     });
-    if (active)
-      return res.status(400).json({ error: "Trip still active" });
 
-    // Create trip baru
+    if (!assignment || assignment.status !== "PENDING") {
+      return res.status(400).json({ error: "Invalid assignment" });
+    }
+
+    const used = await prisma.trip.findUnique({
+      where: { assignmentId }
+    });
+    if (used) {
+      return res.status(400).json({ error: "Assignment already started" });
+    }
+
     const trip = await prisma.trip.create({
       data: {
-        driverId,
-        vehicleId,
-        originId,
+        assignmentId: assignment.id,
+        driverId: assignment.driverId,
+        vehicleId: assignment.vehicleId,
+        originId: assignment.originId,
+        destinationId: assignment.destinationId,
         status: "ON_TRIP"
+      }
+    });
+
+    await prisma.assignment.update({
+      where: { id: assignment.id },
+      data: {
+        status: "STARTED",
+        startedAt: new Date()
       }
     });
 
@@ -578,61 +653,447 @@ app.post("/api/trips/start", async (req, res) => {
   }
 });
 
+
+
 app.post("/api/trips/end", async (req, res) => {
   try {
     const { tripId, destinationId, avgSpeed } = req.body;
 
-    res.json(await prisma.trip.update({
-      where: { id: tripId },
+    const trip = await prisma.trip.findUnique({
+      where: { id: parseInt(tripId) }
+    });
+
+    if (!trip || trip.status !== "ON_TRIP") {
+      return res.status(400).json({ error: "Invalid trip" });
+    }
+
+    // 1️⃣ update trip
+    await prisma.trip.update({
+      where: { id: trip.id },
       data: {
-        destinationId,
         status: "COMPLETED",
         endTime: new Date(),
+        destinationId,
         avgSpeed
       }
-    }));
+    });
+
+    // 2️⃣ update assignment
+    await prisma.assignment.update({
+      where: { id: trip.assignmentId },
+      data: {
+        status: "PENDING", // ⬅️ FIX DI SINI
+        startedAt: null
+      }
+    });
+
+    res.json({ message: "Trip completed successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 app.post("/api/gps/push", async (req, res) => {
   try {
-    const { tripId, vehicleId, latitude, longitude, speed } = req.body;
+    const { vehicleId, latitude, longitude, speed } = req.body;
 
-    res.json(await prisma.position.create({
-      data: { tripId, vehicleId, latitude, longitude, speed }
-    }));
+    const assignment = await prisma.assignment.findFirst({
+      where: {
+        vehicleId: parseInt(vehicleId),
+        status: "STARTED"   // ⬅️ FIX DI SINI
+      },
+      include: {
+        trip: true
+      }
+    });
+
+    if (!assignment || !assignment.trip) {
+      return res.status(400).json({ error: "No active trip for vehicle" });
+    }
+
+    const position = await prisma.position.create({
+      data: {
+        tripId: assignment.trip.id,
+        vehicleId: assignment.vehicleId,
+        latitude,
+        longitude,
+        speed
+      }
+    });
+
+    res.json(position);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+
+
 app.get("/api/dashboard/map", async (req, res) => {
   try {
-    const vehicles = await prisma.vehicle.findMany({
+    const trips = await prisma.trip.findMany({
+      where: {
+        status: "ON_TRIP"
+      },
       include: {
-        positions: { take: 1, orderBy: { timestamp: "desc" } },
-        statuses: { take: 1, orderBy: { timestamp: "desc" } },
-        trips: {
-          where: { status: "ON_TRIP" },
+        assignment: {
           include: {
+            driver: true,
             origin: true,
             destination: true,
-            driver: true,
-            user: true
+            vehicle: {
+              include: {
+                positions: {
+                  take: 1,
+                  orderBy: { timestamp: "desc" }
+                },
+                statuses: {
+                  take: 1,
+                  orderBy: { timestamp: "desc" }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+
+    res.json(trips);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET route polyline (car / highway)
+app.get("/api/routes", async (req, res) => {
+  try {
+    const {
+      originLat,
+      originLng,
+      destLat,
+      destLng
+    } = req.query;
+
+    if (!originLat || !originLng || !destLat || !destLng) {
+      return res.status(400).json({ error: "Invalid coordinates" });
+    }
+
+    const osrmUrl =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${originLng},${originLat};${destLng},${destLat}` +
+      `?overview=full&geometries=geojson`;
+
+    const response = await fetch(osrmUrl);
+    const data = await response.json();
+
+    if (!data.routes || !data.routes.length) {
+      return res.status(404).json({ error: "Route not found" });
+    }
+
+    const route = data.routes[0];
+
+    res.json({
+      geometry: route.geometry.coordinates, // [lng, lat]
+      distance: route.distance, // meters
+      duration: route.duration  // seconds
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET active trips (map metadata)
+app.get("/api/dashboard/active-trips", async (req, res) => {
+  try {
+    const trips = await prisma.trip.findMany({
+      where: { status: "ON_TRIP" },
+      include: {
+        driver: true,
+        vehicle: true,
+        origin: true,
+        destination: true
+      }
+    });
+
+    const colors = [
+      "#FF5733",
+      "#33FF57",
+      "#3357FF",
+      "#F39C12",
+      "#9B59B6",
+      "#1ABC9C"
+    ];
+
+    const data = trips.map((trip, index) => ({
+      tripId: trip.id,
+      color: colors[index % colors.length],
+
+      driver: {
+        id: trip.driver.id,
+        name: trip.driver.name
+      },
+
+      vehicle: {
+        id: trip.vehicle.id,
+        plate: trip.vehicle.plate
+      },
+
+      origin: {
+        id: trip.origin.id,
+        name: trip.origin.name,
+        lat: trip.origin.latitude,
+        lng: trip.origin.longitude
+      },
+
+      destination: {
+        id: trip.destination.id,
+        name: trip.destination.name,
+        lat: trip.destination.latitude,
+        lng: trip.destination.longitude
+      }
+    }));
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET live positions for map
+app.get("/api/dashboard/live-positions", async (req, res) => {
+  try {
+    const trips = await prisma.trip.findMany({
+      where: { status: "ON_TRIP" },
+      include: {
+        driver: true,
+        vehicle: {
+          include: {
+            positions: {
+              take: 1,
+              orderBy: { timestamp: "desc" }
+            }
           }
         }
       }
     });
 
-    const warehouses = await prisma.warehouse.findMany();
+    const data = trips
+      .filter(t => t.vehicle.positions.length)
+      .map(t => {
+        const pos = t.vehicle.positions[0];
 
-    res.json({ vehicles, warehouses });
+        return {
+          tripId: t.id,
+          vehicleId: t.vehicle.id,
+
+          latitude: pos.latitude,
+          longitude: pos.longitude,
+          speed: pos.speed,
+
+          driver: t.driver.name,
+          plate: t.vehicle.plate,
+          timestamp: pos.timestamp
+        };
+      });
+
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+/* ####################
+ENDPOINT DATA FRONTEND
+ #################### */
+
+ app.get("/api/dashboard/stats", async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [
+      activeVehicles,
+      tripsToday,
+      scheduledTrips,
+      completedTrips,
+      delayedTrips
+    ] = await Promise.all([
+      prisma.trip.groupBy({
+        by: ["vehicleId"],
+        where: { status: "ON_TRIP" }
+      }),
+      prisma.trip.count({
+        where: { startTime: { gte: today } }
+      }),
+      prisma.assignment.count({
+        where: { createdAt: { gte: today } }
+      }),
+      prisma.trip.count({
+        where: { status: "COMPLETED" }
+      }),
+      prisma.trip.count({
+        where: {
+          status: "COMPLETED",
+          avgSpeed: { lt: 40 } // contoh delay rule
+        }
+      })
+    ]);
+
+    const onTimePerformance =
+      completedTrips === 0
+        ? 0
+        : ((completedTrips - delayedTrips) / completedTrips) * 100;
+
+    const delayRate =
+      completedTrips === 0
+        ? 0
+        : (delayedTrips / completedTrips) * 100;
+
+    res.json({
+      activeVehicles: activeVehicles.length,
+      activeVehiclesChange: "+2.5%",
+      tripsToday,
+      scheduledTrips,
+      onTimePerformance: Number(onTimePerformance.toFixed(1)),
+      delayRate: Number(delayRate.toFixed(1))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/dashboard/performance", async (req, res) => {
+  try {
+    const range = req.query.range || "7d";
+
+    // =============================
+    // RANGE HANDLING
+    // =============================
+    const now = new Date();
+    let startDate = new Date();
+
+    if (range === "30d") {
+      startDate.setDate(now.getDate() - 29);
+    } else {
+      // default 7 hari
+      startDate.setDate(now.getDate() - 6);
+    }
+
+    startDate.setHours(0, 0, 0, 0);
+
+    // =============================
+    // AMBIL DATA TRIP
+    // =============================
+    const trips = await prisma.trip.findMany({
+      where: {
+        status: "COMPLETED",
+        endTime: {
+          gte: startDate
+        }
+      },
+      select: {
+        endTime: true,
+        avgSpeed: true
+      }
+    });
+
+    // =============================
+    // PREPARE MAP PER HARI
+    // =============================
+    const dayMap = {};
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    for (let i = 0; i < (range === "30d" ? 30 : 7); i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+
+      const key = d.toISOString().split("T")[0];
+      dayMap[key] = {
+        name: dayNames[d.getDay()],
+        onTime: 0,
+        delay: 0
+      };
+    }
+
+    // =============================
+    // HITUNG ONTIME / DELAY
+    // =============================
+    for (const trip of trips) {
+      if (!trip.endTime || trip.avgSpeed === null) continue;
+
+      const dateKey = trip.endTime.toISOString().split("T")[0];
+      if (!dayMap[dateKey]) continue;
+
+      if (trip.avgSpeed >= 40) {
+        dayMap[dateKey].onTime += 1;
+      } else {
+        dayMap[dateKey].delay += 1;
+      }
+    }
+
+    const result = Object.values(dayMap);
+
+    // =============================
+    // AVERAGE
+    // =============================
+    const totalOnTime = result.reduce((a, b) => a + b.onTime, 0);
+    const totalDelay = result.reduce((a, b) => a + b.delay, 0);
+    const daysCount = result.length || 1;
+
+    res.json({
+      data: result,
+      average: {
+        onTime: Math.round(totalOnTime / daysCount),
+        delay: Math.round(totalDelay / daysCount)
+      }
+    });
+  } catch (err) {
+    console.error("Performance chart error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/dashboard/trip-status", async (req, res) => {
+  try {
+    const trips = await prisma.trip.findMany({
+      select: {
+        status: true,
+        avgSpeed: true
+      }
+    });
+
+    let onTime = 0;
+    let delayed = 0;
+    let atRisk = 0;
+
+    for (const trip of trips) {
+      if (trip.status === "ONGOING") {
+        atRisk++;
+      } else if (trip.status === "COMPLETED") {
+        if (trip.avgSpeed >= 40) onTime++;
+        else delayed++;
+      }
+    }
+
+    const total = onTime + delayed + atRisk || 1;
+
+    res.json({
+      data: [
+        { name: "On Time", value: Math.round((onTime / total) * 100), color: "#10b981" },
+        { name: "Delayed", value: Math.round((delayed / total) * 100), color: "#3b82f6" },
+        { name: "At Risk", value: Math.round((atRisk / total) * 100), color: "#ef4444" }
+      ]
+    });
+  } catch (err) {
+    console.error("Trip status donut error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 function parseNameAndCity(str) {
   if (!str) return { name: null, city: null };
@@ -806,7 +1267,9 @@ app.get("/api/filter/cascade-options", authMiddleware, async (req, res) => {
       }
 
       // Hanya ambil trips yang punya destination
-      destWhere.destinationId = { not: null };
+      // ✅ BENAR (Prisma v6 safe)
+destinationId: { gt: 0 }
+
 
       const destTrips = await prisma.trip.findMany({
         where: destWhere,

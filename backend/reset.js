@@ -9,10 +9,8 @@ async function main() {
   await prisma.driver.deleteMany();
   await prisma.vehicle.deleteMany();
   await prisma.warehouse.deleteMany();
-  await prisma.activityLog.deleteMany();
-  await prisma.user.deleteMany();
-
-  console.log("Semua data berhasil dihapus!");
+  await prisma.assignment.deleteMany();
+  await prisma.trip.deleteMany();
 }
 
 main()

@@ -23,25 +23,31 @@ enum TripStatus {
   COMPLETED
 }
 
+enum AssignmentStatus {
+  PENDING
+  STARTED
+  CANCELLED
+}
+
 //////////////////////////////////////////////////
 // USER & LOG
 //////////////////////////////////////////////////
 
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   password     String
   name         String
-  role         Role          @default(VIEWER)
+  role         Role      @default(VIEWER)
   lastLoginAt  DateTime?
   lastLoginIp  String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   profileImage String?
   jobRole      String?
-  activities   ActivityLog[]
 
-  trips        Trip[]
+  activities ActivityLog[]
+  trips      Trip[]
 }
 
 model ActivityLog {
@@ -72,7 +78,8 @@ model Driver {
   name      String   @unique
   createdAt DateTime @default(now())
 
-  trips     Trip[]
+  assignments Assignment[]
+  trips       Trip[]
 }
 
 model Vehicle {
@@ -82,55 +89,89 @@ model Vehicle {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  trips     Trip[]
-  positions Position[]
-  statuses  VehicleStatus[]
+  assignments Assignment[]
+  trips       Trip[]
+  positions   Position[]
+  statuses    VehicleStatus[]
 }
 
 model Warehouse {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique       // misal: "Gudang A"
+  id        Int    @id @default(autoincrement())
+  name      String @unique
   city      String
   latitude  Float
   longitude Float
+
+  originAssignments      Assignment[] @relation("AssignmentOrigin")
+  destinationAssignments Assignment[] @relation("AssignmentDestination")
 
   originTrips      Trip[] @relation("OriginWarehouse")
   destinationTrips Trip[] @relation("DestinationWarehouse")
 }
 
 //////////////////////////////////////////////////
-// OPERATIONAL CORE
+// ASSIGNMENT (REAL CASE CORE)
+//////////////////////////////////////////////////
+
+model Assignment {
+  id            Int @id @default(autoincrement())
+  driverId      Int
+  vehicleId     Int
+  originId      Int
+  destinationId Int
+
+  status    AssignmentStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  startedAt DateTime?
+
+  driver      Driver    @relation(fields: [driverId], references: [id])
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id])
+  origin      Warehouse @relation("AssignmentOrigin", fields: [originId], references: [id])
+  destination Warehouse @relation("AssignmentDestination", fields: [destinationId], references: [id])
+
+  trip Trip?
+}
+
+//////////////////////////////////////////////////
+// TRIP (RUNTIME)
 //////////////////////////////////////////////////
 
 model Trip {
-  id            Int        @id @default(autoincrement())
-  driverId      Int
-  vehicleId     Int
-  userId        String?
+  id Int @id @default(autoincrement())
+
+  assignmentId Int     @unique
+  driverId     Int
+  vehicleId    Int
+  userId       String?
 
   originId      Int
-  destinationId Int?
+  destinationId Int
 
-  status        TripStatus @default(ON_TRIP)
-  startTime     DateTime   @default(now())
-  endTime       DateTime?
-  avgSpeed      Float?
+  status    TripStatus @default(ON_TRIP)
+  startTime DateTime   @default(now())
+  endTime   DateTime?
+  avgSpeed  Float?
 
-  driver        Driver     @relation(fields: [driverId], references: [id])
-  vehicle       Vehicle    @relation(fields: [vehicleId], references: [id])
-  user          User?       @relation(fields: [userId], references: [id])
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+  driver     Driver     @relation(fields: [driverId], references: [id])
+  vehicle    Vehicle    @relation(fields: [vehicleId], references: [id])
+  user       User?      @relation(fields: [userId], references: [id])
 
-  origin        Warehouse  @relation("OriginWarehouse", fields: [originId], references: [id])
-  destination   Warehouse? @relation("DestinationWarehouse", fields: [destinationId], references: [id])
+  origin      Warehouse @relation("OriginWarehouse", fields: [originId], references: [id])
+  destination Warehouse @relation("DestinationWarehouse", fields: [destinationId], references: [id])
 
-  positions     Position[]
+  positions Position[]
 
   @@index([status])
   @@index([startTime])
 }
 
+//////////////////////////////////////////////////
+// GPS & STATUS
+//////////////////////////////////////////////////
+
 model Position {
-  id        Int      @id @default(autoincrement())
+  id        Int @id @default(autoincrement())
   tripId    Int
   vehicleId Int
 
@@ -139,8 +180,8 @@ model Position {
   speed     Float?
   timestamp DateTime @default(now())
 
-  trip     Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  trip    Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
   @@index([timestamp])
 }
@@ -148,7 +189,7 @@ model Position {
 model VehicleStatus {
   id        Int      @id @default(autoincrement())
   vehicleId Int
-  isOnline  Boolean @default(true)
+  isOnline  Boolean  @default(true)
   battery   Int?
   timestamp DateTime @default(now())
 
