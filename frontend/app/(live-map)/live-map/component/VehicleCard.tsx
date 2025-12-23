@@ -8,6 +8,9 @@ interface VehicleCardProps {
   route: string;
   status: VehicleStatus;
   speed: string;
+
+  /** 🔥 tambahan */
+  onClick?: () => void;
 }
 
 const STATUS_STYLE: Record<
@@ -57,19 +60,23 @@ export default function VehicleCard({
   route,
   status,
   speed,
+  onClick,
 }: VehicleCardProps) {
   const style = STATUS_STYLE[status];
 
   return (
     <div
+      onClick={onClick}
       className="
         p-4 rounded-xl
         bg-[#020617]
         border border-white/10
         hover:border-cyan-500/40
         hover:bg-cyan-500/5
+        active:scale-[0.98]
         transition
         cursor-pointer
+        select-none
       "
     >
       {/* HEADER */}
@@ -84,7 +91,8 @@ export default function VehicleCard({
         <span
           className={`
             inline-flex items-center gap-2
-            px-2.5 py-1 rounded-full text-[11px] font-medium
+            px-2.5 py-1 rounded-full
+            text-[11px] font-medium
             ${style.bg} ${style.text}
           `}
         >

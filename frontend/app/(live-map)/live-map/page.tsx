@@ -6,6 +6,9 @@ import MapView from "./component/MapView";
 import VehiclePanel from "./component/VehiclePanel";
 import StatusLegend from "./component/StatusLegend";
 
+/* =============================
+   TYPES
+============================= */
 export type VehicleStatus = "active" | "idle" | "alert" | "off";
 
 export interface Vehicle {
@@ -15,10 +18,16 @@ export interface Vehicle {
   route: string;
   status: VehicleStatus;
   speed: number;
-  position: [number, number];
+  position: [number, number]; // [lat, lng]
 }
 
+/* =============================
+   PAGE
+============================= */
 export default function LiveMapPage() {
+  /* =============================
+     SOURCE OF TRUTH
+  ============================= */
   const [vehicles] = useState<Vehicle[]>([
     {
       id: "1",
@@ -49,21 +58,35 @@ export default function LiveMapPage() {
     },
   ]);
 
-  return (
-    <div className="relative flex h-full w-full overflow-hidden">
-      {/* MAP AREA */}
-      <div className="flex-1 relative">
-        <MapView vehicles={vehicles} />
+  /* =============================
+     SELECTED VEHICLE (SYNC MAP ↔ PANEL)
+  ============================= */
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
+    null
+  );
 
-        {/* LEGEND */}
+  return (
+    <div className="relative flex h-full w-full overflow-hidden bg-[#020617]">
+      {/* ================= MAP AREA ================= */}
+      <div className="flex-1 relative">
+        <MapView
+          vehicles={vehicles}
+          selectedVehicleId={selectedVehicleId}
+        />
+
+        {/* STATUS LEGEND */}
         <div className="absolute bottom-6 left-6 z-[500]">
           <StatusLegend />
         </div>
       </div>
 
-      {/* RIGHT PANEL (KUNCI) */}
-      <div className="w-80 shrink-0">
-        <VehiclePanel vehicles={vehicles} />
+      {/* ================= RIGHT PANEL ================= */}
+      <div className="w-80 shrink-0 border-l border-white/5">
+        <VehiclePanel
+          vehicles={vehicles}
+          selectedVehicleId={selectedVehicleId}
+          onSelectVehicle={setSelectedVehicleId}
+        />
       </div>
     </div>
   );
