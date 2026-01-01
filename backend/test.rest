@@ -5,7 +5,7 @@ POST http://localhost:3001/api/drivers
 Content-Type: application/json
 
 {
-  "name": "Budi Santoso"
+  "name": "dimas test"
 }
 
 ##################################################
@@ -15,8 +15,8 @@ POST http://localhost:3001/api/vehicles
 Content-Type: application/json
 
 {
-  "plate": "B 1234 ABC",
-  "type": "Truck Box"
+  "plate": "D 1 MAS",
+  "type": "MERCY"
 }
 
 ##################################################
@@ -26,7 +26,7 @@ POST http://localhost:3001/api/warehouses
 Content-Type: application/json
 
 {
-  "name": "Gudang Jakarta",
+  "name": "Gudang Jakarta 2 ",
   "city": "Jakarta",
   "latitude": -6.208763,
   "longitude": 106.845599
@@ -39,7 +39,7 @@ POST http://localhost:3001/api/warehouses
 Content-Type: application/json
 
 {
-  "name": "Gudang Bandung",
+  "name": "Gudang Bandung 2",
   "city": "Bandung",
   "latitude": -6.914744,
   "longitude": 107.609810
@@ -52,10 +52,10 @@ POST http://localhost:3001/api/assignments
 Content-Type: application/json
 
 {
-  "driverId": 1,
-  "vehicleId": 1,
-  "originId": 1,
-  "destinationId": 2
+  "driverId": 8,
+  "vehicleId": 6,
+  "originId": 4,
+  "destinationId": 5
 }
 
 ##################################################
@@ -65,7 +65,7 @@ POST http://localhost:3001/api/trips/start
 Content-Type: application/json
 
 {
-  "assignmentId": 2
+  "assignmentId": 11
 }
 
 ##################################################
@@ -75,8 +75,8 @@ POST http://localhost:3001/api/gps/push
 Content-Type: application/json
 
 {
-  "tripId": 2,
-  "vehicleId": 1,
+  "tripId": 6,
+  "vehicleId": 6,
   "latitude": -6.300000,
   "longitude": 107.000000,
   "speed": 60
@@ -89,8 +89,8 @@ POST http://localhost:3001/api/gps/push
 Content-Type: application/json
 
 {
-  "tripId": 2,
-  "vehicleId": 1,
+  "tripId": 6,
+  "vehicleId": 6,
   "latitude": -6.500000,
   "longitude": 107.300000,
   "speed": 55
@@ -103,8 +103,8 @@ POST http://localhost:3001/api/trips/end
 Content-Type: application/json
 
 {
-  "tripId": 1,
-  "destinationId": 2,
+  "tripId": 6,
+  "destinationId": 5,
   "avgSpeed": 52
 }
 
